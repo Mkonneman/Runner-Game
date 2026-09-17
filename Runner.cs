@@ -15,6 +15,16 @@ namespace Runner_Game
     /// </summary>
     public class Runner
     {
+        // Animating the Player
+        private const float ANIMATION_SPEED = 0.08f; // seconds per frame - lower = faster
+        private const int FRAME_WIDTH = 56;
+        private const int FRAME_HEIGHT = 37;
+        private const int FRAME_COUNT = 8;
+        private double animationTimer;
+        private int animationFrame;
+
+        // Scale
+        private float scale = 4f;
 
         // Creates input dectecing variables to detect and hold what input is gathered 
         protected KeyboardState currentKeyboardState;
@@ -23,7 +33,7 @@ namespace Runner_Game
 
         // Texture and position 
         private Texture2D texture;
-        private Vector2 position = new Vector2(200, 200);
+        private Vector2 position = new Vector2(400, 475);
 
         // The current lane the player is in 
         private int currentLane = 2;
@@ -52,7 +62,7 @@ namespace Runner_Game
                 if (currentLane > 1)
                 {
                     currentLane--;
-                    position.X -= 100;
+                    position.X -= 200;
                 }
             }
             if (currentKeyboardState.IsKeyDown(Keys.Right) && previousKeyboardState.IsKeyUp(Keys.Right) || currentKeyboardState.IsKeyDown(Keys.D) && previousKeyboardState.IsKeyUp(Keys.D))
@@ -60,7 +70,7 @@ namespace Runner_Game
                 if (currentLane < 3)
                 {
                     currentLane++;
-                    position.X += 100;
+                    position.X += 200;
                 }
             }
 
@@ -75,7 +85,22 @@ namespace Runner_Game
         /// <param name="spriteBatch">The spritebatch to render with</param>
         public void Draw(GameTime gameTime, SpriteBatch spriteBatch)
         {
-            spriteBatch.Draw(texture, position, null, Color.White, 0f, new Vector2(64, 64), 0.5f, SpriteEffects.None, 0f);
+            animationTimer += gameTime.ElapsedGameTime.TotalSeconds;
+
+            if (animationTimer > ANIMATION_SPEED)
+            {
+                animationFrame++;
+                if (animationFrame > FRAME_COUNT - 1) animationFrame = 0;
+                animationTimer -= ANIMATION_SPEED;
+            }
+
+            // Determine the source rectangle
+            var source = new Rectangle(animationFrame * FRAME_WIDTH, 0, FRAME_WIDTH, FRAME_HEIGHT);
+            var origin = new Vector2(FRAME_WIDTH / 2f, FRAME_HEIGHT); // bottom-center of one frame
+
+            // Draw the runner using the current animation frame
+            spriteBatch.Draw(texture, position, source, Color.White, 0f, origin, scale, SpriteEffects.None, 0f);
+
         }
 
     }
