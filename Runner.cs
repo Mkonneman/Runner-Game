@@ -1,12 +1,13 @@
-﻿using System;
+﻿using CollisionExercise.Collisions;
+using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Content;
+using Microsoft.Xna.Framework.Graphics;
+using Microsoft.Xna.Framework.Input;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Microsoft.Xna.Framework;
-using Microsoft.Xna.Framework.Input;
-using Microsoft.Xna.Framework.Graphics;
-using Microsoft.Xna.Framework.Content;
 
 namespace Runner_Game
 {
@@ -37,6 +38,21 @@ namespace Runner_Game
 
         // The current lane the player is in 
         private int currentLane = 2;
+
+        /// <summary>
+        /// Gets the bounding rectangle of the sprite, adjusted for its position and scale
+        /// </summary>
+        public BoundingRectangle Bounds
+        {
+            get
+            {
+                float width = FRAME_WIDTH * scale;
+                float height = FRAME_HEIGHT * scale;
+                float x = position.X - width / 2f;
+                float y = position.Y - height;
+                return new BoundingRectangle(x, y, width, height);
+            }
+        }
 
         /// <summary>
         /// Loads the sprite texture using the provided ContentManager
