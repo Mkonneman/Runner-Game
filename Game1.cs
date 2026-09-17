@@ -9,7 +9,11 @@ public class Game1 : Game
     private GraphicsDeviceManager _graphics;
     private SpriteBatch _spriteBatch;
 
+    // The Player
     private Runner _runner;
+
+    // Text for the game
+    private SpriteFont enjoy;
 
     public Game1()
     {
@@ -39,6 +43,9 @@ public class Game1 : Game
     {
         _runner.Update(gameTime);
 
+        // Loads the font from the content folder
+        enjoy = Content.Load<SpriteFont>("EnjoyFont"); 
+
         base.Update(gameTime);
     }
 
@@ -49,6 +56,12 @@ public class Game1 : Game
         // TODO: Add your drawing code here
         _spriteBatch.Begin();
         _runner.Draw(gameTime, _spriteBatch);
+
+        // Draw instructions and Game Timer 
+        _spriteBatch.DrawString(enjoy, "Use A or D / Left or Right to dodge!", new Vector2(25, 25), Color.Yellow);
+
+        _spriteBatch.DrawString(enjoy, $"{gameTime.TotalGameTime:c}", new Vector2(50, 75), Color.Yellow);
+
         _spriteBatch.End();
 
         base.Draw(gameTime);
