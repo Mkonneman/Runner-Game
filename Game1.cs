@@ -15,6 +15,9 @@ public class Game1 : Game
     // The Player
     private Runner _runner;
 
+    // Background 
+    private Texture2D _backgroundTexture;
+
     // Text for the game
     private SpriteFont enjoy;
 
@@ -22,13 +25,14 @@ public class Game1 : Game
     private List<Bolders> _bolders = new();
 
     // Array that moves the bolder (Same as the player but simplified)
-    private readonly float[] _laneX = { 100f, 200f, 300f };
+    private readonly float[] _laneX = { 200f, 400f, 600f };
     private Random _random = new();
     private float _spawnTimer;
     private const float SpawnInterval = 1.5f; // seconds between spawns (Tunned)
 
     // Bool for ending the game
     private bool _isGameOver;
+    private TimeSpan _finalTime;
 
     public Game1()
     {
@@ -51,6 +55,9 @@ public class Game1 : Game
 
         // Loads the font from the content folder
         enjoy = Content.Load<SpriteFont>("EnjoyFont");
+
+        // The background
+        _backgroundTexture = Content.Load<Texture2D>("caveSprite");
 
         // TODO: use this.Content to load your game content here\
         _runner.LoadContent(Content);
@@ -88,6 +95,7 @@ public class Game1 : Game
             {
                 _bolders.RemoveAt(i); // despawn the one that hit
                 _isGameOver = true;   // and end the game
+                _finalTime = gameTime.TotalGameTime; // lock in the time reached
                 continue;
             }
 
@@ -96,8 +104,6 @@ public class Game1 : Game
                 _bolders.RemoveAt(i);
             }
         }
-
-        
 
         base.Update(gameTime);
     }
@@ -108,14 +114,33 @@ public class Game1 : Game
 
         // TODO: Add your drawing code here
         _spriteBatch.Begin();
+
+        _spriteBatch.Draw(_backgroundTexture, new Rectangle(0, 0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height), Color.White * 0.6f);
+
+
+        // Draw Runner (Player)
         _runner.Draw(gameTime, _spriteBatch);
+
+
+        // Draw the bolders
+        foreach (var bolder in _bolders)
+        {
+            bolder.Draw(gameTime, _spriteBatch);
+        }
 
         // Draw instructions and Game Timer 
         _spriteBatch.DrawString(enjoy, "Use A or D / Left or Right to dodge!", new Vector2(25, 25), Color.Yellow);
-
         _spriteBatch.DrawString(enjoy, $"{gameTime.TotalGameTime:c}", new Vector2(50, 75), Color.Yellow);
 
+
+        // Display for the final time reached
+        if (_isGameOver)
+        {
+            _spriteBatch.DrawString(enjoy, $"Game Over! Time reached: {_finalTime:c}", new Vector2(25, 120), Color.Red);
+        }
+
         _spriteBatch.End();
+
 
         base.Draw(gameTime);
     }

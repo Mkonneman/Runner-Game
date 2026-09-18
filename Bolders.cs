@@ -58,7 +58,7 @@ namespace Runner_Game
         {
             get
             {
-                float height = FRAME_HEIGHT * scale;
+                float height = FRAME_HEIGHT * scale * 2f;
                 float width = FRAME_WIDTH * scale;
                 var center = new Vector2(position.X, position.Y - height / 2f);
                 return new BoundingCircle(center, width / 2f);
@@ -78,11 +78,11 @@ namespace Runner_Game
         /// Updates the sprite's position based on user input
         /// </summary>
         /// <param name="gameTime">The GameTime</param>
-        public void Update(GameTime gameTime)
+        public void Update(GameTime gameTime, int screenHeight)
         {
             position.Y += FALL_SPEED * (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            if (position.Y > 500)
+            if (position.Y - 128 > screenHeight)
             {
                 IsOffScreen = true;
             }
