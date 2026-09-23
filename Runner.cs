@@ -31,7 +31,6 @@ namespace Runner_Game
         protected KeyboardState currentKeyboardState;
         protected KeyboardState previousKeyboardState;
 
-
         // Texture and position 
         private Texture2D texture;
         private Vector2 position = new Vector2(400, 475);

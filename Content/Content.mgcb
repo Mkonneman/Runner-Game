@@ -39,6 +39,13 @@
 /processorParam:Version=3.8.5.1
 /build:caveSprite.jpg
 
+#begin crash.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:crash.wav
+
 #begin EnjoyFont.spritefont
 /importer:FontDescriptionImporter
 /processor:FontDescriptionProcessor
@@ -46,6 +53,13 @@
 /processorParam:TextureFormat=Compressed
 /processorParam:Version=3.8.5.1
 /build:EnjoyFont.spritefont
+
+#begin Final Dash.mp3
+/importer:Mp3Importer
+/processor:SongProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Final Dash.mp3
 
 #begin player_run.png
 /importer:TextureImporter

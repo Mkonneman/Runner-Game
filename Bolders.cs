@@ -88,7 +88,6 @@ namespace Runner_Game
             }
         }
 
-
         /// <summary>
         /// Draws the sprite using the supplied SpriteBatch
         /// </summary>

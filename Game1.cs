@@ -2,7 +2,9 @@
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using System.Collections.Generic;
+using Microsoft.Xna.Framework.Media;
 using System;
+using Microsoft.Xna.Framework.Audio;
 
 
 namespace Runner_Game;
@@ -20,6 +22,10 @@ public class Game1 : Game
 
     // Text for the game
     private SpriteFont enjoy;
+
+    // Audio Handling for the game
+    private Song _runnerMusic;
+    private SoundEffect _crashSound;
 
     // Makes multiple bolders
     private List<Bolders> _bolders = new();
@@ -56,8 +62,16 @@ public class Game1 : Game
         // Loads the font from the content folder
         enjoy = Content.Load<SpriteFont>("EnjoyFont");
 
-        // The background
+        // loads the texture of the background
         _backgroundTexture = Content.Load<Texture2D>("caveSprite");
+
+        // Loads the music for the game
+        _runnerMusic = Content.Load<Song>("Final Dash");
+        MediaPlayer.IsRepeating = true;
+        MediaPlayer.Play(_runnerMusic);
+
+        _crashSound = Content.Load<SoundEffect>("crash");
+
 
         // TODO: use this.Content to load your game content here\
         _runner.LoadContent(Content);
@@ -95,6 +109,8 @@ public class Game1 : Game
             {
                 _bolders.RemoveAt(i); // despawn the one that hit
                 _isGameOver = true;   // and end the game
+                _crashSound.Play();
+                MediaPlayer.Stop(); // Stop the music 
                 _finalTime = gameTime.TotalGameTime; // lock in the time reached
                 continue;
             }
@@ -115,12 +131,11 @@ public class Game1 : Game
         // TODO: Add your drawing code here
         _spriteBatch.Begin();
 
+        // Background Texture
         _spriteBatch.Draw(_backgroundTexture, new Rectangle(0, 0, GraphicsDevice.Viewport.Width, GraphicsDevice.Viewport.Height), Color.White * 0.6f);
-
 
         // Draw Runner (Player)
         _runner.Draw(gameTime, _spriteBatch);
-
 
         // Draw the bolders
         foreach (var bolder in _bolders)
@@ -132,8 +147,7 @@ public class Game1 : Game
         _spriteBatch.DrawString(enjoy, "Use A or D / Left or Right to dodge!", new Vector2(25, 25), Color.Yellow);
         _spriteBatch.DrawString(enjoy, $"{gameTime.TotalGameTime:c}", new Vector2(50, 75), Color.Yellow);
 
-
-        // Display for the final time reached
+        // Display for the final time reached once collision is detected
         if (_isGameOver)
         {
             _spriteBatch.DrawString(enjoy, $"Game Over! Time reached: {_finalTime:c}", new Vector2(25, 120), Color.Red);
