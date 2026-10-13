@@ -14,7 +14,7 @@ namespace Runner_Game
     /// <summary>
     /// A class for the player to controle the runner
     /// </summary>
-    public class Runner
+    public class Runner : IParticleEmitter
     {
         // Animating the Player
         private const float ANIMATION_SPEED = 0.08f; // seconds per frame - lower = faster
@@ -34,6 +34,8 @@ namespace Runner_Game
         // Texture and position 
         private Texture2D texture;
         private Vector2 position = new Vector2(400, 475);
+        public Vector2 Position => position;
+        public Vector2 Velocity { get; private set; }
 
         // The current lane the player is in 
         private int currentLane = 2;
@@ -69,6 +71,9 @@ namespace Runner_Game
         /// <param name="gameTime">The GameTime</param>
         public void Update(GameTime gameTime)
         {
+            // Helps detect the players velocity for particles
+            Vector2 startPosition = position;
+
             // Grab Keyboard input 
             currentKeyboardState = Keyboard.GetState();
 
@@ -91,6 +96,11 @@ namespace Runner_Game
             }
 
             previousKeyboardState = currentKeyboardState; // Keeps buttons from being triggered multiple times
+
+            // Velocity = distance moved / time
+            // Zero unless player switched lanes this frame
+            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            Velocity = dt > 0 ? (position - startPosition) / dt : Vector2.Zero;
         }
 
 

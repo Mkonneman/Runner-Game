@@ -52,6 +52,13 @@ namespace Runner_Game
         private Texture2D texture;
         private Vector2 position = new Vector2(400, 475);
 
+        // Position
+        public Vector2 Position => position;
+
+        // Tint  
+        public Color Tint => tint;
+
+
         /// <summary>
         /// Creates a new bolder above the top of the screen, centered on the given lane's X position.
         /// The game class decides which lane to spawn in and just passes that X in here.
