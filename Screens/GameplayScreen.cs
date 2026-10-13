@@ -42,11 +42,43 @@ namespace Runner_Game.Screens
         // Time survived this run (only counts while playing, not on the menu)
         private TimeSpan _runTime;
 
+        // Lets add some "Screen shake"
+        private float _shakeTime;
+        private float _shakeDuration;
+        private float _shakeIntensity;
+        private Vector2 _shakeOffset;
+
         public GameplayScreen()
         {
             // Fades in and out over half a second
             TransitionOnTime = TimeSpan.FromSeconds(0.5);
             TransitionOffTime = TimeSpan.FromSeconds(0.5);
+        }
+
+        /// <summary>
+        /// Starts a screen shake. Intensity is the max pixel offset.
+        /// </summary>
+        private void Shake(float intensity, float duration)
+        {
+            _shakeIntensity = intensity;
+            _shakeDuration = duration;
+            _shakeTime = duration;
+        }
+
+        private void UpdateShake(float dt)
+        {
+            if (_shakeTime > 0)
+            {
+                _shakeTime -= dt;
+                float strength = _shakeIntensity * (_shakeTime / _shakeDuration); // fades out
+                _shakeOffset = new Vector2(
+                    (float)(_random.NextDouble() * 2 - 1) * strength,
+                    (float)(_random.NextDouble() * 2 - 1) * strength);
+            }
+            else
+            {
+                _shakeOffset = Vector2.Zero;
+            }
         }
 
         public override void Activate()
@@ -69,9 +101,13 @@ namespace Runner_Game.Screens
             MediaPlayer.Play(_runnerMusic);
         }
 
+
         public override void Update(GameTime gameTime, bool otherScreenHasFocus, bool coveredByOtherScreen)
         {
             base.Update(gameTime, otherScreenHasFocus, coveredByOtherScreen);
+
+            // We need shake to continue running even after the collsion so it can settle down
+            UpdateShake((float)gameTime.ElapsedGameTime.TotalSeconds);
 
             // Only run the game while this screen is on top and the run is going
             if (!IsActive || _isGameOver) return;
@@ -100,10 +136,11 @@ namespace Runner_Game.Screens
 
                 if (_bolders[i].Bounds.CollidesWith(_runner.Bounds))
                 {
-                    _bolders.RemoveAt(i); // despawn the one that hit
-                    _isGameOver = true;   // and end the game
-                    _crashSound.Play();
-                    MediaPlayer.Stop(); // Stop the music
+                    _bolders.RemoveAt(i); // Despawn the one that hit
+                    _isGameOver = true;   // End the game
+                    _crashSound.Play();   // Play crash sound duh...
+                    Shake(12f, 0.5f);     // Big shake on crash
+                    MediaPlayer.Stop(); // Stop the music (Might change later)
                     continue;
                 }
 
@@ -123,18 +160,29 @@ namespace Runner_Game.Screens
             }
         }
 
+        /// <summary>
+        /// Updated draw class to handle shaking the enviorment
+        /// </summary>
+        /// <param name="gameTime"> Game time </param>
         public override void Draw(GameTime gameTime)
         {
             var spriteBatch = ScreenManager.SpriteBatch;
             var font = ScreenManager.MenuFont;
             var viewport = ScreenManager.GraphicsDevice.Viewport;
 
-            spriteBatch.Begin();
+            // Shaken by the SpriteBatch transform
+            Matrix shakeMatrix = Matrix.CreateTranslation(_shakeOffset.X, _shakeOffset.Y, 0);
+            spriteBatch.Begin(transformMatrix: shakeMatrix);
 
-            // Background Texture
-            spriteBatch.Draw(_backgroundTexture, new Rectangle(0, 0, viewport.Width, viewport.Height), Color.White * 0.6f * TransitionAlpha);
+            // The background is drawn slightly bigger so that shaking never shows the empty void thats behind it
+            int pad = 16;
+            spriteBatch.Draw(
+                _backgroundTexture,
+                new Rectangle(-pad, -pad, viewport.Width + pad * 2, viewport.Height + pad * 2),
+                Color.White * 0.6f * TransitionAlpha
+                );
 
-            // Draw Runner (Player)
+            // Draw Runner (aka the Player)
             _runner.Draw(gameTime, spriteBatch);
 
             // Draw the bolders
@@ -143,11 +191,16 @@ namespace Runner_Game.Screens
                 bolder.Draw(gameTime, spriteBatch);
             }
 
+            spriteBatch.End();
+
+            // Text stays still (Dosn't shake...)
+            spriteBatch.Begin();
+
             // Draw instructions and Game Timer
             spriteBatch.DrawString(font, "Use A or D / Left or Right to dodge!", new Vector2(25, 25), Color.Yellow * TransitionAlpha);
             spriteBatch.DrawString(font, $"{_runTime:c}", new Vector2(50, 75), Color.Yellow * TransitionAlpha);
 
-            // Display for the final time reached once collision is detected
+            // Display for the final time reached once collision is detected (gonna change later to count down or be a bar)
             if (_isGameOver)
             {
                 spriteBatch.DrawString(font, $"Game Over! Time reached: {_runTime:c}", new Vector2(25, 120), Color.Red * TransitionAlpha);

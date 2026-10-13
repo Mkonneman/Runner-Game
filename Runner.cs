@@ -45,10 +45,11 @@ namespace Runner_Game
         {
             get
             {
-                float width = FRAME_WIDTH * scale;
-                float height = FRAME_HEIGHT * scale;
+                // Hero art is 20x29 inside the 56x37 frame 
+                float width = 20 * scale;
+                float height = 29 * scale;
                 float x = position.X - width / 2f;
-                float y = position.Y - height;
+                float y = position.Y - height - 1 * scale; // 1px gap under his feet in the frame
                 return new BoundingRectangle(x, y, width, height);
             }
         }
