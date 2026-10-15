@@ -16,6 +16,9 @@ namespace Runner_Game
     /// </summary>
     public class Bolders
     {
+        // How fast this rock falls down the screen, picked at random
+        private readonly float fallSpeed;
+
         // Size of the boulder sprite (boulder.png 128x128)
         private const int FRAME_WIDTH = 128;
         private const int FRAME_HEIGHT = 128;
@@ -66,6 +69,10 @@ namespace Runner_Game
         /// <param name="laneX">The X position of the lane to spawn in</param>
         public Bolders(float laneX)
         {
+            // Every rock gets its own size and speed (set first, the spawn height below uses scale)
+            scale = RandomHelper.NextFloat(0.7f, 1.4f);
+            fallSpeed = RandomHelper.NextFloat(180f, 360f);
+
             // Start just above the screen so it falls into view instead of popping in. (Gonna add random position later instead of lanes)
             position = new Vector2(laneX, -(FRAME_HEIGHT * scale));
 

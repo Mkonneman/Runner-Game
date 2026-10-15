@@ -32,7 +32,6 @@ namespace Runner_Game.Screens
 
         // Array that moves the bolder (its more simplified will be changed later)
         private readonly float[] _laneX = { 200f, 400f, 600f };
-        private Random _random = new();
         private float _spawnTimer;
         private const float SpawnInterval = 1.5f; // seconds between spawns
 
@@ -76,9 +75,7 @@ namespace Runner_Game.Screens
             {
                 _shakeTime -= dt;
                 float strength = _shakeIntensity * (_shakeTime / _shakeDuration); // fades out
-                _shakeOffset = new Vector2(
-                    (float)(_random.NextDouble() * 2 - 1) * strength,
-                    (float)(_random.NextDouble() * 2 - 1) * strength);
+                _shakeOffset = new Vector2(RandomHelper.NextFloat(-1, 1), RandomHelper.NextFloat(-1, 1)) * strength;
             }
             else
             {
@@ -136,7 +133,7 @@ namespace Runner_Game.Screens
             if (_spawnTimer >= SpawnInterval)
             {
                 _spawnTimer = 0f;
-                float laneX = _laneX[_random.Next(_laneX.Length)];
+                float laneX = _laneX[RandomHelper.Next(0, _laneX.Length - 1)];
                 var bolder = new Bolders(laneX);
                 bolder.LoadContent(_content); 
                 _bolders.Add(bolder);
@@ -151,7 +148,11 @@ namespace Runner_Game.Screens
 
                 // Dust kicked off the top of each falling rock, in the rock's color
                 if (RandomHelper.Next(0, 1) == 0)
-                    _rockDust.PlaceDust(_bolders[i].Position - new Vector2(0, 110), _bolders[i].Tint);
+                {
+                    var rock = _bolders[i].Bounds;
+                    _rockDust.PlaceDust(rock.Center - new Vector2(0, rock.Radius), _bolders[i].Tint);
+                }
+                    
 
                 if (_bolders[i].Bounds.CollidesWith(_runner.Bounds))
                 {

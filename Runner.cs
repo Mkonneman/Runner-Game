@@ -34,8 +34,12 @@ namespace Runner_Game
         // Texture and position 
         private Texture2D texture;
         private Vector2 position = new Vector2(400, 475);
-        public Vector2 Position => position;
+        public Vector2 Position { get => position; set => position = value; } // settable so the title screen can run him into the cave
+
+        // Tint for the sprite in the title
+        public Color Color { get; set; } = Color.White;
         public Vector2 Velocity { get; private set; }
+
 
         // The current lane the player is in 
         private int currentLane = 2;
@@ -125,7 +129,7 @@ namespace Runner_Game
             var origin = new Vector2(FRAME_WIDTH / 2f, FRAME_HEIGHT); // bottom-center of one frame
 
             // Draw the runner using the current animation frame
-            spriteBatch.Draw(texture, position, source, Color.White, 0f, origin, scale, SpriteEffects.None, 0f);
+            spriteBatch.Draw(texture, position, source, Color, 0f, origin, scale, SpriteEffects.None, 0f);
 
         }
 
