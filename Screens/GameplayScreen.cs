@@ -20,8 +20,17 @@ namespace Runner_Game.Screens
         // The Player
         private Runner _runner;
 
-        // Background
-        private Texture2D _backgroundTexture;
+        // Paralax Scrolling for the Inside Cave 
+        private static readonly (string Name, float Speed, float Y)[] CaveLayerInfo =
+        {
+            ("cave_wall", 30f, 0f),
+            ("cave_pillars", 80f, -52f), // pulled up so the ceiling touches the top of the screen
+            ("cave_floor", 260f, 20f),   // Want to make it look like the player is walking on the floor
+        };
+        private Texture2D[] _caveLayers;
+
+        // How long the cave has been scrolling (stops when he crashes)
+        private float _scrollTime;
 
         // Audio Handling for the game
         private Song _runnerMusic;
@@ -87,8 +96,8 @@ namespace Runner_Game.Screens
         {
             _content = ScreenManager.Game.Content;
 
-            // loads the texture of the background
-            _backgroundTexture = _content.Load<Texture2D>("caveSprite");
+            // Loads the various cave layers
+            _caveLayers = Array.ConvertAll(CaveLayerInfo, layer => _content.Load<Texture2D>(layer.Name));
 
             // Loads the music and sounds for the game
             _runnerMusic = _content.Load<Song>("Final Dash");
@@ -125,6 +134,7 @@ namespace Runner_Game.Screens
             if (!IsActive || _isGameOver) return;
 
             _runTime += gameTime.ElapsedGameTime;
+            _scrollTime += (float)gameTime.ElapsedGameTime.TotalSeconds;
 
             _runner.Update(gameTime);
 
@@ -193,8 +203,17 @@ namespace Runner_Game.Screens
             var shake = Matrix.CreateTranslation(_shakeOffset.X, _shakeOffset.Y, 0);
             spriteBatch.Begin(transformMatrix: shake);
 
-            // Background is a bit bigger to cover up the void that is behind it
-            spriteBatch.Draw(_backgroundTexture, new Rectangle(-16, -16, viewport.Width + 32, viewport.Height + 32), Color.White * 0.6f * TransitionAlpha);
+            // Cave layers scroll left so he looks like he's running deeper in. The screen is still a lil big to allow for shake to look good
+            for (int i = 0; i < _caveLayers.Length; i++)
+            {
+                var texture = _caveLayers[i];
+                var color = (i == 0 ? Color.White * 0.6f : Color.White) * TransitionAlpha;
+                float offset = _scrollTime * CaveLayerInfo[i].Speed % texture.Width;
+                for (float x = -MathF.Floor(offset) - 16; x < viewport.Width + 16; x += texture.Width)
+                {
+                    spriteBatch.Draw(texture, new Vector2(x, CaveLayerInfo[i].Y), color);
+                }
+            }
 
             // Draw Runner (aka the player)
             _runner.Draw(gameTime, spriteBatch);
