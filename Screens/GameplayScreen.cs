@@ -64,9 +64,7 @@ namespace Runner_Game.Screens
         private static readonly Rectangle SpikeSource = new Rectangle(27, 0, 74, 80); // top of the crystal (the rest is "in the floor")
         private const float WallWarningDistance = 267f;   // how far off screen walls start (about 0.8s of ! warning at 260px/s)
         private const float WallReach = 80f;              // how close the wall has to be for the smash to hit it
-        private const float DashSmashWindow = 0.5f;       // Seconds after a dash where a smash gets the Smash Dash bonus
         private float _swipeReach = WallReach;            // the swipe keeps the reach it was swung with
-        private float _dashSmashTime;                     // Smash Dash keeps the hammer breaking things for this long
         private readonly float SmashCooldown = Shop.Value(Upgrade.Hammer);           // seconds between smashes (a missed smash still uses it)
         private float _smashCooldownLeft;
         private bool _smashPressed;                       // set in HandleInput, used in the next Update
@@ -251,15 +249,7 @@ namespace Runner_Game.Screens
                 _smashCooldownLeft = SmashCooldown;
                 _swipeLeft = SwipeTime;
                 _swipeReach = SmashReach();
-
-                // Smash Dash keeps the hammer out for the rest of the dash window, so the dash can carry him into the wall
-                if (DashSmashReady) _dashSmashTime = DashSmashWindow;
-                SmashInReach(DashSmashReady ? 2 : 1);
-            }
-            else if (_dashSmashTime > 0)
-            {
-                _dashSmashTime -= dt;
-                SmashInReach(2);
+                SmashInReach();
             }
 
             for (int i = _spikes.Count - 1; i >= 0; i--)
@@ -336,9 +326,9 @@ namespace Runner_Game.Screens
         private Vector2 SmashPoint() => new Vector2(_runner.Bounds.X + _runner.Bounds.Width / 2 + 30, _runner.Bounds.Y);
 
         /// <summary>
-        /// Breaks the nearest wall in reach and every falling rock in reach, for points (times bonus)
+        /// Breaks the nearest wall in reach and every falling rock in reach, for points
         /// </summary>
-        private void SmashInReach(int bonus)
+        private void SmashInReach()
         {
             float runnerRight = _runner.Bounds.Right;
             int wall = _spikes.FindIndex(s => s.IsWall && SpikeBounds(s).Left - runnerRight < SmashReach() && SpikeBounds(s).Right > _runner.Bounds.Left);
@@ -348,7 +338,7 @@ namespace Runner_Game.Screens
                 Shake(6f, 0.25f);
                 _crashSound.Play();
                 _spikes.RemoveAt(wall);
-                _score += Points(WallPoints) * bonus;
+                _score += Points(WallPoints);
             }
 
             // Also smashes any falling rock right above him
@@ -361,7 +351,7 @@ namespace Runner_Game.Screens
                     Shake(6f, 0.25f);
                     _crashSound.Play();
                     _bolders.RemoveAt(b);
-                    _score += Points(BoulderPoints) * bonus;
+                    _score += Points(BoulderPoints);
                 }
             }
         }
@@ -369,12 +359,10 @@ namespace Runner_Game.Screens
         // A rock can be smashed when its hit circle comes within reach of his head
         private bool InSmashRange(Bolders bolder) => Vector2.Distance(bolder.Bounds.Center, SmashPoint()) < bolder.Bounds.Radius + SmashReach();
 
-        // Smash Dash (Power Dash 1) makes a smash right after a dash reach twice as far and score double
-        private bool DashSmashReady => Shop.Level(Upgrade.PowerDash) >= 1 && _runner.DashCooldownLeft > 0 && _runner.DashCooldown - _runner.DashCooldownLeft < DashSmashWindow;
-        private float SmashReach() => DashSmashReady ? WallReach * 2 : WallReach;
+        private float SmashReach() => WallReach;
 
-        // Phase Dash (Power Dash 2) nothing can hurt him mid dash, even walls!
-        private bool Phasing => Shop.Level(Upgrade.PowerDash) >= 2 && _runner.IsDashing;
+        // Phase Dash makes him invincible for a bit after each dash, even through walls! (longer each tier)
+        private bool Phasing => _runner.DashCooldownLeft > 0 && _runner.DashCooldown - _runner.DashCooldownLeft < Shop.Value(Upgrade.PowerDash);
 
         // Circle outline made of small square dots
         private void DrawSwipe()
@@ -567,7 +555,7 @@ namespace Runner_Game.Screens
             {
                 var head = SmashPoint();
                 float ready = (_smashCooldownLeft > 0 ? 0.25f : 0.8f) * SmashRingOpacity;
-                DrawDottedCircle(head, SmashReach(), (DashSmashReady ? Color.Cyan : Color.White) * ready * TransitionAlpha);
+                DrawDottedCircle(head, SmashReach(), Color.White * ready * TransitionAlpha);
                 foreach (var bolder in _bolders)
                 {
                     if (InSmashRange(bolder))
@@ -586,6 +574,7 @@ namespace Runner_Game.Screens
             // Red flash after a hit (stronger for bigger hits), then blinks while he can't be hurt
             if (_flashTime > 0) _runner.Color = Color.Lerp(PlayerTint, Color.Red, _flashStrength) * TransitionAlpha;
             else if (_hurtTime > 0 && (int)(_hurtTime * 10) % 2 == 0) _runner.Color = PlayerTint * 0.35f * TransitionAlpha;
+            else if (Phasing) _runner.Color = PlayerTint * 0.5f * TransitionAlpha;  // See through while invincible so you know its working
             else _runner.Color = PlayerTint * TransitionAlpha;
             _runner.Draw(_isGameOver ? new GameTime() : gameTime, spriteBatch); // zero time after a crash freezes his animation
             spriteBatch.End();
@@ -663,7 +652,7 @@ namespace Runner_Game.Screens
             int iconSize = (int)(_dashIcon.Width * IconScale);
             DrawCooldownIcon(_dashIcon, new Vector2(viewport.Width - 2 * iconSize - 30, 62), _runner.DashCooldownLeft, _runner.DashCooldown, "Shift");
             DrawCooldownIcon(_smashIcon, new Vector2(viewport.Width - iconSize - 16, 62), _smashCooldownLeft, SmashCooldown, "S");
-            spriteBatch.DrawString(font, $"Score: {_score}", new Vector2(25, 20), Color.Yellow * TransitionAlpha);
+            spriteBatch.DrawString(ScreenManager.BigFont, $"Score: {_score}", new Vector2(25, 20), Color.Yellow * TransitionAlpha, 0f, Vector2.Zero, 0.8f, SpriteEffects.None, 0f);
 
             // Heal hint under the score (green when a heal is possible)
             if (Shop.Has(Upgrade.Heal))

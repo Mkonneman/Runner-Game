@@ -30,6 +30,7 @@ public class Game1 : Game
         _screenManager.AddScreen(new TitleScreen());
 
         base.Initialize();
+        SaveSystem.Load();  // Gems, upgrades and settings from last time
     }
 
     protected override void Draw(GameTime gameTime)

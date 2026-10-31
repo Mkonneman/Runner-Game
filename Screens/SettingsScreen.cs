@@ -15,12 +15,17 @@ namespace Runner_Game.Screens
         private Texture2D _pixel;
         private SoundEffect _testSound;   // plays when the sound effect volume changes so you can hear it
 
-        // Rows go music, sound effects, smash ring, then Back
+        // Rows go music, sound effects, smash ring, Reset, then Back
         private static readonly string[] Labels = { "Music", "Sound effects", "Smash ring" };
         private const int RowY = 170;          // y of the first row
         private const int RowSpacing = 55;
-        private static readonly Rectangle BackButton = new Rectangle(340, 345, 120, 44);
+        private static readonly Rectangle ResetButton = new Rectangle(290, 340, 220, 44);
+        private static readonly Rectangle BackButton = new Rectangle(340, 400, 120, 44);
+        private const int ResetRow = 3;
+        private const int BackRow = 4;
         private int _selected;
+        private bool _confirmReset;   // Reset needs a second press so you dont wipe everything by accident
+        private string _message = "";
         private MouseState _lastMouse;
 
         public SettingsScreen()
@@ -45,10 +50,11 @@ namespace Runner_Game.Screens
         {
             // Up/Down picks a row, Left/Right changes it
             if (input.IsNewKeyPress(Keys.Up) || input.IsNewKeyPress(Keys.W)) _selected = Math.Max(_selected - 1, 0);
-            if (input.IsNewKeyPress(Keys.Down) || input.IsNewKeyPress(Keys.S)) _selected = Math.Min(_selected + 1, Labels.Length);
+            if (input.IsNewKeyPress(Keys.Down) || input.IsNewKeyPress(Keys.S)) _selected = Math.Min(_selected + 1, BackRow);
             if (input.IsNewKeyPress(Keys.Left) || input.IsNewKeyPress(Keys.A)) Change(_selected, -1);
             if (input.IsNewKeyPress(Keys.Right) || input.IsNewKeyPress(Keys.D)) Change(_selected, 1);
-            bool back = input.IsNewKeyPress(Keys.Escape) || input.IsNewButtonPress(Buttons.Back) || (_selected == Labels.Length && input.IsNewKeyPress(Keys.Enter));
+            bool back = input.IsNewKeyPress(Keys.Escape) || input.IsNewButtonPress(Buttons.Back) || (_selected == BackRow && input.IsNewKeyPress(Keys.Enter));
+            bool reset = _selected == ResetRow && (input.IsNewKeyPress(Keys.Enter) || input.IsNewKeyPress(Keys.Space));
 
             // Mouse support, hovering a row picks it and clicking the < or > changes it
             var mouse = Mouse.GetState();
@@ -59,11 +65,30 @@ namespace Runner_Game.Screens
                 if (click && ArrowRectangle(i, -1).Contains(mouse.Position)) Change(i, -1);
                 if (click && ArrowRectangle(i, 1).Contains(mouse.Position)) Change(i, 1);
             }
-            if (mouse.Position != _lastMouse.Position && BackButton.Contains(mouse.Position)) _selected = Labels.Length;
+            if (mouse.Position != _lastMouse.Position && ResetButton.Contains(mouse.Position)) _selected = ResetRow;
+            if (mouse.Position != _lastMouse.Position && BackButton.Contains(mouse.Position)) _selected = BackRow;
+            if (click && ResetButton.Contains(mouse.Position)) reset = true;
             if (click && BackButton.Contains(mouse.Position)) back = true;
             _lastMouse = mouse;
 
-            if (back) ExitScreen();
+            // Moving off the reset button cancels the are you sure
+            if (_selected != ResetRow) _confirmReset = false;
+            if (reset)
+            {
+                if (_confirmReset)
+                {
+                    SaveSystem.ResetPlayerData();
+                    _message = "Player data reset";
+                    _confirmReset = false;
+                }
+                else _confirmReset = true;
+            }
+
+            if (back)
+            {
+                SaveSystem.Save();  // Keeps the new volume and ring settings
+                ExitScreen();
+            }
         }
 
         // Steps a setting (volumes go by 10% and the smash ring by 25%)
@@ -98,8 +123,8 @@ namespace Runner_Game.Screens
 
             // Darken the title and put a panel behind the menu
             spriteBatch.Draw(_pixel, new Rectangle(0, 0, viewport.Width, viewport.Height), Color.Black * 0.5f * TransitionAlpha);
-            spriteBatch.Draw(_pixel, new Rectangle(190, 90, 420, 320), new Color(10, 20, 30) * 0.9f * TransitionAlpha);
-            DrawText("Settings", new Vector2(400 - font.MeasureString("Settings").X * 0.5f, 100), Color.Yellow, 1f);
+            spriteBatch.Draw(_pixel, new Rectangle(190, 90, 420, 380), new Color(10, 20, 30) * 0.9f * TransitionAlpha);
+            DrawText("Settings", new Vector2(400 - ScreenManager.TitleFont.MeasureString("Settings").X * 0.5f, 100), Color.Yellow, 1f, ScreenManager.TitleFont);
 
             for (int i = 0; i < Labels.Length; i++)
             {
@@ -119,8 +144,14 @@ namespace Runner_Game.Screens
                 DrawText(text, new Vector2(500 - font.MeasureString(text).X * 0.3f, RowY + i * RowSpacing), Color.Cyan, 0.6f);
             }
 
+            // Reset button, turns red and asks again before wiping anything
+            bool resetSelected = _selected == ResetRow;
+            string resetText = _confirmReset ? "Are you sure?" : _message != "" ? _message : "Reset player data";
+            spriteBatch.Draw(_pixel, ResetButton, (_confirmReset ? new Color(140, 30, 30) : resetSelected ? new Color(30, 90, 60) : new Color(20, 40, 55)) * TransitionAlpha);
+            DrawText(resetText, new Vector2(ResetButton.Center.X - font.MeasureString(resetText).X * 0.25f, ResetButton.Y + 10), resetSelected ? Color.Yellow : Color.White, 0.5f);
+
             // Back button
-            bool backSelected = _selected == Labels.Length;
+            bool backSelected = _selected == BackRow;
             spriteBatch.Draw(_pixel, BackButton, (backSelected ? new Color(30, 90, 60) : new Color(20, 40, 55)) * TransitionAlpha);
             DrawText("Back", new Vector2(BackButton.Center.X - font.MeasureString("Back").X * 0.3f, BackButton.Y + 8), backSelected ? Color.Yellow : Color.White, 0.6f);
 
@@ -128,9 +159,9 @@ namespace Runner_Game.Screens
         }
 
         // Text with a shadow
-        private void DrawText(string text, Vector2 position, Color color, float scale)
+        private void DrawText(string text, Vector2 position, Color color, float scale, SpriteFont font = null)
         {
-            var font = ScreenManager.MenuFont;
+            font ??= ScreenManager.MenuFont;
             ScreenManager.SpriteBatch.DrawString(font, text, position + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             ScreenManager.SpriteBatch.DrawString(font, text, position, color * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
         }

@@ -28,7 +28,9 @@ namespace Runner_Game.StateManagement
         /// <summary>
         /// A SpriteFont shared by all GameScreens
         /// </summary>
-        public SpriteFont MenuFont { get; private set; }
+        public SpriteFont MenuFont { get; private set; }   // Pixellari, for anything you actually read
+        public SpriteFont TitleFont { get; private set; }  // Alagard, titles and buttons (fits the dungeon vibe)
+        public SpriteFont BigFont { get; private set; }    // Upheaval, big loud stuff like You Died and the score
 
         /// <summary>
         /// Constructs a new ScreenManager
@@ -54,7 +56,9 @@ namespace Runner_Game.StateManagement
         protected override void LoadContent()
         {
             SpriteBatch = new SpriteBatch(GraphicsDevice);
-            MenuFont = _content.Load<SpriteFont>("Fonts/EnjoyFont"); // Uses the game's existing font
+            MenuFont = _content.Load<SpriteFont>("Fonts/BodyFont");
+            TitleFont = _content.Load<SpriteFont>("Fonts/TitleFont");
+            BigFont = _content.Load<SpriteFont>("Fonts/BigFont");
 
             // Tell each of the screens to load thier content
             foreach (var screen in _screens)

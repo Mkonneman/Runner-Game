@@ -110,35 +110,36 @@ namespace Runner_Game.Screens
             // Darken the game behind so the text stands out
             spriteBatch.Draw(_pixel, new Rectangle(0, 0, viewport.Width, viewport.Height), Color.Black * 0.6f * TransitionAlpha);
 
-            DrawCentered("You Died", 80, Color.Red, 1.6f);
+            DrawCentered("You Died", 80, Color.Red, 1.6f, ScreenManager.BigFont);
 
             // This deaths pun (shrinks if its too wide for the screen)
             var font = ScreenManager.MenuFont;
             DrawCentered(_pun, 165, Color.White, MathF.Min(0.55f, (viewport.Width - 60) / font.MeasureString(_pun).X));
 
-            DrawCentered($"Score: {_score}", 210, Color.Yellow, 1f);
+            DrawCentered($"Score: {_score}", 210, Color.Yellow, 0.9f, ScreenManager.BigFont);
             DrawCentered($"+{Shop.GemsFromScore(_score)} gems", 258, Color.Cyan, 0.6f);
 
             // Same stone buttons as the title, the picked one lights up with yellow text
             for (int i = 0; i < Options.Length; i++)
             {
                 var rect = OptionRectangle(i);
+                var buttonFont = ScreenManager.TitleFont;
                 bool selected = i == _selected;
                 spriteBatch.Draw(_button, rect, (selected ? Color.White : new Color(170, 180, 200)) * TransitionAlpha);
-                float scale = MathF.Min(0.65f, (rect.Width - 28) / font.MeasureString(Options[i]).X);
-                Vector2 size = font.MeasureString(Options[i]) * scale;
+                float scale = MathF.Min(0.65f, (rect.Width - 28) / buttonFont.MeasureString(Options[i]).X);
+                Vector2 size = buttonFont.MeasureString(Options[i]) * scale;
                 var position = new Vector2(rect.Center.X - size.X / 2, rect.Center.Y - size.Y / 2);
-                spriteBatch.DrawString(font, Options[i], position + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-                spriteBatch.DrawString(font, Options[i], position, (selected ? Color.Yellow : Color.White) * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                spriteBatch.DrawString(buttonFont, Options[i], position + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                spriteBatch.DrawString(buttonFont, Options[i], position, (selected ? Color.Yellow : Color.White) * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }
 
             spriteBatch.End();
         }
 
         // Draws text centered left to right on the screen (with a shadow so it stands out)
-        private void DrawCentered(string text, float y, Color color, float scale)
+        private void DrawCentered(string text, float y, Color color, float scale, SpriteFont font = null)
         {
-            var font = ScreenManager.MenuFont;
+            font ??= ScreenManager.MenuFont;
             var viewport = ScreenManager.GraphicsDevice.Viewport;
 
             Vector2 size = font.MeasureString(text) * scale;

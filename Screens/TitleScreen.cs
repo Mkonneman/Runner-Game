@@ -225,7 +225,7 @@ namespace Runner_Game.Screens
             // Blinks on and off about twice a second (hidden once he heads in)
             if (!_enteringCave && (int)(_blinkTimer * 2) % 2 == 0)
             {
-                DrawCentered("Press Enter to Start", 186, Color.Yellow, 0.9f);
+                DrawCentered("Press Enter to Start", 186, Color.Yellow, 0.75f, ScreenManager.BigFont);
             }
 
             // Buttons (lit up when the mouse is over them)
@@ -246,7 +246,7 @@ namespace Runner_Game.Screens
         // A button with its label centered in it
         private void DrawButton(Rectangle button, string label)
         {
-            var font = ScreenManager.MenuFont;
+            var font = ScreenManager.TitleFont;
             bool hover = button.Contains(Mouse.GetState().Position);
             ScreenManager.SpriteBatch.Draw(_button, button, (hover ? Color.White : new Color(170, 180, 200)) * TransitionAlpha);
 
@@ -259,9 +259,9 @@ namespace Runner_Game.Screens
         }
 
         // Draws text centered left to right on the screen (with a shadow so it stands out)
-        private void DrawCentered(string text, float y, Color color, float scale)
+        private void DrawCentered(string text, float y, Color color, float scale, SpriteFont font = null)
         {
-            var font = ScreenManager.MenuFont;
+            font ??= ScreenManager.MenuFont;
             var viewport = ScreenManager.GraphicsDevice.Viewport;
 
             Vector2 size = font.MeasureString(text) * scale;

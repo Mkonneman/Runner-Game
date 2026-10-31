@@ -52,7 +52,7 @@ namespace Runner_Game
         private const float DASH_TIME = 0.15f;   // How long the burst lasts (Might let this be upgraded)
         public readonly float DashCooldown = Shop.Value(Upgrade.Dash);   // Seconds before he can dash again (Also upgradable)
         private float dashTimeLeft;
-        public bool IsDashing => dashTimeLeft > 0;  // Phase Dash checks this
+        public bool IsDashing => dashTimeLeft > 0;
         public float DashCooldownLeft { get; private set; }  // 0 = ready (The cooldown UI reads this)
 
         // Jumping (Made for the floor spikes)

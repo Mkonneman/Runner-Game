@@ -237,7 +237,7 @@ namespace Runner_Game.Screens
 
                 spriteBatch.Draw(_pixel, rect, (selected ? new Color(30, 90, 60) : new Color(10, 20, 30)) * 0.85f * TransitionAlpha);
                 spriteBatch.Draw(_icons[i], new Vector2(rect.Center.X - 24, rect.Y + 8), (maxed ? Color.Gray : Color.White) * TransitionAlpha);
-                DrawText(item.Name, new Vector2(rect.Center.X - font.MeasureString(item.Name).X * 0.2f, rect.Y + 58), selected ? Color.Yellow : Color.White, 0.4f);
+                DrawText(item.Name, new Vector2(rect.Center.X - ScreenManager.TitleFont.MeasureString(item.Name).X * 0.2f, rect.Y + 58), selected ? Color.Yellow : Color.White, 0.4f, ScreenManager.TitleFont);
 
                 // One bar per level, lit green once bought
                 for (int b = 0; b < maxLevel; b++)
@@ -280,9 +280,9 @@ namespace Runner_Game.Screens
         private Vector2 EyePosition(Vector2 eye, float breath) => MerchantFeet + new Vector2(eye.X, -(_merchant.Height - eye.Y) * breath);
 
         // Text with a shadow so it reads on the busy background
-        private void DrawText(string text, Vector2 position, Color color, float scale)
+        private void DrawText(string text, Vector2 position, Color color, float scale, SpriteFont font = null)
         {
-            var font = ScreenManager.MenuFont;
+            font ??= ScreenManager.MenuFont;
             ScreenManager.SpriteBatch.DrawString(font, text, position + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             ScreenManager.SpriteBatch.DrawString(font, text, position, color * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
         }

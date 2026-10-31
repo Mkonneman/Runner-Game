@@ -9,7 +9,9 @@ Sound Effects (Content/Audio/Sfx)
 - crash.wav – Procedurally generated sound effect, created with Claude (Anthropic) using Python/NumPy
 
 Fonts (Content/Fonts)
-- Enjoy Journey.otf – Free Public Domain Font, Dafont (https://www.dafont.com/)
+- alagard.ttf (TitleFont) – "Alagard" by Hewett Tsoi, 100% Free, Dafont (https://www.dafont.com/alagard.font)
+- upheavtt.ttf (BigFont) – "Upheaval" by Brian Kent (Ænigma), freeware for personal and commercial use, Dafont (https://www.dafont.com/upheaval.font) (upheaval.txt kept with it as the author asks)
+- Pixellari.ttf (BodyFont) – "Pixellari" by Zacchary Dempsey-Plante, 100% Free, Dafont (https://www.dafont.com/pixellari.font)
 
 Menu (Content/Images/Menu)
 - menu_sky.png, menu_mountains.png, menu_trees.png, menu_ground.png, menu_cave.png – AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs)
@@ -44,3 +46,4 @@ Unused (Content/Unused, still in the project but not loaded in-game)
 - caveSprite.jpg – Free stock illustration, Dreamstime (https://www.dreamstime.com/illustration/pixel-art-dungeon-background.html) (replaced by the cave layers)
 - Final Dash.mp3 – Suno AI-generated music, Suno (https://suno.com) (replaced by eraser.wav)
 - lane_switch.wav – Procedurally generated with Claude (Anthropic) using Python/NumPy (removed from the project)
+- Enjoy Journey.otf – Free Public Domain Font, Dafont (https://www.dafont.com/) (replaced by Alagard, Upheaval and Pixellari)

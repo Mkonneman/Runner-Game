@@ -4,7 +4,7 @@ using Microsoft.Xna.Framework.Media;
 namespace Runner_Game
 {
     /// <summary>
-    /// Player settings from the settings menu (only kept in memory like the shop, might save these to a file later)
+    /// Player settings from the settings menu (saved with SaveSystem when the menu closes)
     /// </summary>
     public static class Settings
     {
