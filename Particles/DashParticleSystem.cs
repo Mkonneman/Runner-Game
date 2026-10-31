@@ -28,7 +28,7 @@ namespace Runner_Game
 
         protected override void InitializeConstants()
         {
-            textureFilename = "streak";
+            textureFilename = "Images/Particles/streak";
 
             // Streaks per AddParticles call (1 Per Dash)
             minNumParticles = 10;

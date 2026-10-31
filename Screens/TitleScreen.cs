@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -15,10 +16,10 @@ namespace Runner_Game.Screens
         // Parallax Scrolling with various speeds oooo how fancy!
         private static readonly (string Name, float Speed, float Y)[] LayerInfo =
         {
-            ("menu_sky", 0f, 0f),
-            ("menu_mountains", 15f, 10f),
-            ("menu_trees", 70f, 68f),
-            ("menu_ground", 220f, 0f),
+            ("Images/Menu/menu_sky", 0f, 0f),
+            ("Images/Menu/menu_mountains", 15f, 10f),
+            ("Images/Menu/menu_trees", 70f, 68f),
+            ("Images/Menu/menu_ground", 220f, 0f),
         };
 
         // Background layers, cave and music for the title
@@ -43,6 +44,20 @@ namespace Runner_Game.Screens
         // Timer for the blinking "Press Enter" text
         private float _blinkTimer;
 
+        // Stone buttons in a row under the logo (click them, or Tab for the shop)
+        private static readonly Rectangle ShopButton = new Rectangle(145, 245, 160, 48);
+        private static readonly Rectangle HowToPlayButton = new Rectangle(320, 245, 160, 48);
+        private static readonly Rectangle SettingsButton = new Rectangle(495, 245, 160, 48);
+        private Texture2D _button;
+        private Texture2D _logo;
+
+        // Glowing red eyes in the cave, with sparks drifting up from them
+        private static readonly Vector2[] CaveEyes = { new(95, 171), new(119, 171) };  // eye centers in menu_cave.png
+        private Texture2D _glow;
+        private SparkParticleSystem _eyeSparks;
+        private Texture2D _pixel;
+        private MouseState _lastMouse;
+
         public TitleScreen()
         {
             // Fades in and out over half a second
@@ -54,8 +69,15 @@ namespace Runner_Game.Screens
         {
             var content = ScreenManager.Game.Content;
             _layers = Array.ConvertAll(LayerInfo, layer => content.Load<Texture2D>(layer.Name));
-            _cave = content.Load<Texture2D>("menu_cave");
-            _titleMusic = content.Load<Song>("Final Dash");
+            _cave = content.Load<Texture2D>("Images/Menu/menu_cave");
+            _pixel = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
+            _pixel.SetData(new[] { Color.White });
+            _button = content.Load<Texture2D>("Images/Menu/button");
+            _logo = content.Load<Texture2D>("Images/Menu/logo");
+            _glow = content.Load<Texture2D>("Images/Particles/particle");
+            _eyeSparks = new SparkParticleSystem(ScreenManager.Game, new Color(255, 60, 40), 1.2f, 0.3f, new Vector2(0, -20), new Vector2(0, -20), wobble: 8, wobbleSpeed: 3);
+            _eyeSparks.Initialize();
+            _titleMusic = content.Load<Song>("Audio/Music/eraser");
 
             // Same runner as the game
             _runner = new Runner();
@@ -66,7 +88,7 @@ namespace Runner_Game.Screens
         // Puts the runner back at the start (for when the player comes back from a run)
         private void ResetScene()
         {
-            _runner.Position = new Vector2(RunnerStartX, GroundY + 4); // 1px gap under his feet in the frame
+            _runner.Position = new Vector2(RunnerStartX, GroundY + 36); // feet on the ground (the frame has a 1px gap under them)
             _enteringCave = false;
             _gameStarted = false;
         }
@@ -77,6 +99,11 @@ namespace Runner_Game.Screens
 
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _blinkTimer += dt;
+
+            // A few sparks a second from the cave's eyes, drifting up and wobbling until they fade
+            if (RandomHelper.Next(0, 6) == 0)
+                _eyeSparks.Emit(EyePosition(CaveEyes[RandomHelper.Next(0, 1)]) + new Vector2(RandomHelper.NextFloat(-4, 4), 0));
+            _eyeSparks.Update(gameTime);
 
             // Reset once the game screen fully covers the title
             if (ScreenState == ScreenState.Hidden) ResetScene();
@@ -101,8 +128,12 @@ namespace Runner_Game.Screens
             if (!coveredByOtherScreen && MediaPlayer.State != MediaState.Playing)
             {
                 MediaPlayer.IsRepeating = true;
+                MediaPlayer.Volume = 0;  // fades in below
                 MediaPlayer.Play(_titleMusic);
             }
+
+            // Fade the title music in (after the shop or a crash)
+            if (!coveredByOtherScreen) MediaPlayer.Volume = MathF.Min(Settings.MusicVolume, MediaPlayer.Volume + 2f * (float)gameTime.ElapsedGameTime.TotalSeconds);
         }
 
         public override void HandleInput(GameTime gameTime, InputState input)
@@ -111,6 +142,26 @@ namespace Runner_Game.Screens
             if (input.IsNewKeyPress(Keys.Enter) || input.IsNewKeyPress(Keys.Space) || input.IsNewButtonPress(Buttons.Start))
             {
                 _enteringCave = true;
+            }
+
+            // Buttons open the merchant or the settings (not once he's running into the cave)
+            var mouse = Mouse.GetState();
+            bool click = mouse.LeftButton == ButtonState.Pressed && _lastMouse.LeftButton == ButtonState.Released;
+            _lastMouse = mouse;
+            if (!_enteringCave && (click && ShopButton.Contains(mouse.Position) || input.IsNewKeyPress(Keys.Tab)))
+            {
+                ScreenManager.AddScreen(new ShopScreen());
+                return;
+            }
+            if (!_enteringCave && click && HowToPlayButton.Contains(mouse.Position))
+            {
+                ScreenManager.AddScreen(new HowToPlayScreen());
+                return;
+            }
+            if (!_enteringCave && click && SettingsButton.Contains(mouse.Position))
+            {
+                ScreenManager.AddScreen(new SettingsScreen());
+                return;
             }
 
             // Esc quits the game
@@ -153,22 +204,58 @@ namespace Runner_Game.Screens
 
             spriteBatch.End();
 
+            // Cave eyes with a slow red pulse and sparks, additive so they actually glow (oooh spooky)
+            spriteBatch.Begin(blendState: BlendState.Additive);
+            float pulse = 0.55f + 0.2f * MathF.Sin(_blinkTimer * 2.5f);
+            foreach (var eye in CaveEyes)
+            {
+                spriteBatch.Draw(_glow, EyePosition(eye), null, new Color(255, 40, 30) * pulse * TransitionAlpha, 0f, new Vector2(8), 2.5f, SpriteEffects.None, 0f);
+            }
+            spriteBatch.End();
+
+            _eyeSparks.Opacity = TransitionAlpha;
+            _eyeSparks.Draw(gameTime);
+
             // Text gets its own Begin so it stays smooth
             spriteBatch.Begin();
 
-            DrawCentered("Runner Game", 14, Color.Yellow, 2f);
-            DrawCentered("Dodge the bolders!", 108, Color.White, 0.8f);
+            // Rock Rush logo at the top
+            spriteBatch.Draw(_logo, new Vector2((viewport.Width - _logo.Width) / 2, 4), Color.White * TransitionAlpha);
 
             // Blinks on and off about twice a second (hidden once he heads in)
             if (!_enteringCave && (int)(_blinkTimer * 2) % 2 == 0)
             {
-                DrawCentered("Press Enter to Start", 148, Color.Yellow, 1f);
+                DrawCentered("Press Enter to Start", 186, Color.Yellow, 0.9f);
             }
 
-            DrawCentered("A / D or Left / Right to move", 198, Color.White, 0.6f);
-            DrawCentered("Esc to Quit", 226, Color.White, 0.6f);
+            // Buttons (lit up when the mouse is over them)
+            DrawButton(ShopButton, "Shop");
+            DrawButton(HowToPlayButton, "How to Play");
+            DrawButton(SettingsButton, "Settings");
 
             spriteBatch.End();
+        }
+
+        // Where an eye of the cave is on screen (the cave is drawn at the right edge, sitting on the ground)
+        private Vector2 EyePosition(Vector2 eye)
+        {
+            var viewport = ScreenManager.GraphicsDevice.Viewport;
+            return new Vector2(viewport.Width - _cave.Width + 40, GroundY + 30 - _cave.Height) + eye;
+        }
+
+        // A button with its label centered in it
+        private void DrawButton(Rectangle button, string label)
+        {
+            var font = ScreenManager.MenuFont;
+            bool hover = button.Contains(Mouse.GetState().Position);
+            ScreenManager.SpriteBatch.Draw(_button, button, (hover ? Color.White : new Color(170, 180, 200)) * TransitionAlpha);
+
+            // Label shrinks to fit long names like How to Play
+            float scale = MathF.Min(0.65f, (button.Width - 28) / font.MeasureString(label).X);
+            Vector2 size = font.MeasureString(label) * scale;
+            var position = new Vector2(button.Center.X - size.X / 2, button.Center.Y - size.Y / 2);
+            ScreenManager.SpriteBatch.DrawString(font, label, position + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, label, position, (hover ? Color.Yellow : Color.White) * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
         }
 
         // Draws text centered left to right on the screen (with a shadow so it stands out)

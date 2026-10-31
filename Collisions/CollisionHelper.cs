@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -30,7 +30,7 @@ namespace CollisionExercise.Collisions
         /// <returns>True for collision False for otherwise</returns>
         public static bool Collides(BoundingRectangle a, BoundingRectangle b)
         {
-            return !(a.Right < b.Left || a.Left > b.Right &&
+            return !(a.Right < b.Left || a.Left > b.Right ||
                    a.Top > b.Bottom || a.Bottom < b.Top);
         }
         /// <summary>

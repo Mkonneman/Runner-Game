@@ -1,4 +1,4 @@
-﻿using CollisionExercise.Collisions;
+using CollisionExercise.Collisions;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
@@ -61,17 +61,23 @@ namespace Runner_Game
         // Tint  
         public Color Tint => tint;
 
+        // Fall speed (the next rock spawned above this one uses it as its max)
+        public float FallSpeed => fallSpeed;
+
 
         /// <summary>
         /// Creates a new bolder above the top of the screen, centered on the given lane's X position.
         /// The game class decides which lane to spawn in and just passes that X in here.
         /// </summary>
         /// <param name="laneX">The X position of the lane to spawn in</param>
-        public Bolders(float laneX)
+        public Bolders(float laneX, float maxSpeed = float.MaxValue)
         {
             // Every rock gets its own size and speed (set first, the spawn height below uses scale)
-            scale = RandomHelper.NextFloat(0.7f, 1.4f);
-            fallSpeed = RandomHelper.NextFloat(180f, 360f);
+            scale = RandomHelper.NextFloat(0.5f, 1.0f);
+
+            // Mostly slow, about 1 in 5 is a fast one
+            float speed = RandomHelper.Next(0, 4) == 0 ? RandomHelper.NextFloat(250f, 300f) : RandomHelper.NextFloat(120f, 240f);
+            fallSpeed = MathF.Min(speed, maxSpeed);
 
             // Start just above the screen so it falls into view instead of popping in. (Gonna add random position later instead of lanes)
             position = new Vector2(laneX, -(FRAME_HEIGHT * scale));
@@ -94,7 +100,7 @@ namespace Runner_Game
                 float height = FRAME_HEIGHT * scale;
                 float width = FRAME_WIDTH * scale;
                 var center = new Vector2(position.X, position.Y - height / 2f);
-                return new BoundingCircle(center, width * 0.38f);
+                return new BoundingCircle(center, width * 0.32f); // a bit inside the spikes 
             }
         }
 
@@ -104,7 +110,7 @@ namespace Runner_Game
         /// <param name="content">The ContentManager to load with</param>
         public void LoadContent(ContentManager content)
         {
-            texture = content.Load<Texture2D>("spike_rock");
+            texture = content.Load<Texture2D>("Images/Gameplay/spike_rock");
         }
 
         /// <summary>
@@ -114,12 +120,11 @@ namespace Runner_Game
         public void Update(GameTime gameTime, int screenHeight)
         {
             // Might add a speed up gimic to certain rocks 
-            position.Y += FALL_SPEED * (float)gameTime.ElapsedGameTime.TotalSeconds;
-
+            position.Y += fallSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
             // Rotation...
             rotation += spinSpeed * (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            if (position.Y - 128 > screenHeight)
+            if (position.Y - FRAME_HEIGHT * scale > screenHeight)
             {
                 IsOffScreen = true;
             }

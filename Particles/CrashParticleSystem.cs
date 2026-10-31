@@ -14,7 +14,7 @@ namespace Runner_Game
 
         protected override void InitializeConstants()
         {
-            textureFilename = "shard";
+            textureFilename = "Images/Particles/shard";
             minNumParticles = 18;
             maxNumParticles = 26;
             DrawOrder = AlphaBlendDrawOrder;
@@ -53,7 +53,7 @@ namespace Runner_Game
         /// <summary>
         /// Helps showcase the fade
         /// </summary>
-        /// <param name="particle"> Particle fed in </param>
+        /// <param name="Images/Particles/particle"> Particle fed in </param>
         /// <param name="dt"> Keeps motion the same speed at any frame rate </param>
         protected override void UpdateParticle(Particle particle, float dt)
         {

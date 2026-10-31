@@ -1,4 +1,4 @@
-﻿using CollisionExercise.Collisions;
+using CollisionExercise.Collisions;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
@@ -34,15 +34,34 @@ namespace Runner_Game
         // Texture and position 
         private Texture2D texture;
         private Vector2 position = new Vector2(400, 475);
-        public Vector2 Position { get => position; set => position = value; } // settable so the title screen can run him into the cave
+        public Vector2 Position { get => position; set => position = value; } // Settable so the title screen can run him into the cave
 
         // Tint for the sprite in the title
         public Color Color { get; set; } = Color.White;
         public Vector2 Velocity { get; private set; }
 
 
-        // The current lane the player is in 
-        private int currentLane = 2;
+        // Decided to free the player to move around
+        private const float MOVE_SPEED = 320f;
+        private const float MIN_X = 60f;
+        private const float MAX_X = 740f;
+        private int facing = 1;                 // This is for the dash
+
+        // Dash: This is quick burst in the direction he's moving, its tied to a cooldown
+        private const float DASH_SPEED = 1400f;
+        private const float DASH_TIME = 0.15f;   // How long the burst lasts (Might let this be upgraded)
+        public readonly float DashCooldown = Shop.Value(Upgrade.Dash);   // Seconds before he can dash again (Also upgradable)
+        private float dashTimeLeft;
+        public bool IsDashing => dashTimeLeft > 0;  // Phase Dash checks this
+        public float DashCooldownLeft { get; private set; }  // 0 = ready (The cooldown UI reads this)
+
+        // Jumping (Made for the floor spikes)
+        private const float JUMP_SPEED = 1000f;  // Upward speed 
+        private const float GRAVITY = 2600f;     // Gravity
+        private const float GROUND_Y = 475f;     // His feet on the cave floor
+        private const int JUMP_FRAME = 2;        // Freezes the player run animation when jumping
+        private float verticalSpeed;
+        private bool isJumping;
 
         /// <summary>
         /// Gets the bounding rectangle of the sprite, adjusted for its position and scale
@@ -52,7 +71,7 @@ namespace Runner_Game
             get
             {
                 // Hero art is 20x29 inside the 56x37 frame 
-                float width = 20 * scale;
+                float width = 14 * scale;
                 float height = 29 * scale;
                 float x = position.X - width / 2f;
                 float y = position.Y - height - 1 * scale; // 1px gap under his feet in the frame
@@ -66,7 +85,7 @@ namespace Runner_Game
         /// <param name="content">The ContentManager to load with</param>
         public void LoadContent(ContentManager content)
         {
-            texture = content.Load<Texture2D>("player_run");
+            texture = content.Load<Texture2D>("Images/Gameplay/player_run");
         }
 
         /// <summary>
@@ -81,31 +100,58 @@ namespace Runner_Game
             // Grab Keyboard input 
             currentKeyboardState = Keyboard.GetState();
 
-            // If Left or Right inputed move the player into various lanes 
-            if (currentKeyboardState.IsKeyDown(Keys.Left) && previousKeyboardState.IsKeyUp(Keys.Left) || currentKeyboardState.IsKeyDown(Keys.A) && previousKeyboardState.IsKeyUp(Keys.A))
+            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            // Hold Left/A or Right/D to move, kept on screen
+            int direction = 0;
+            if (currentKeyboardState.IsKeyDown(Keys.Left) || currentKeyboardState.IsKeyDown(Keys.A)) direction -= 1;
+            if (currentKeyboardState.IsKeyDown(Keys.Right) || currentKeyboardState.IsKeyDown(Keys.D)) direction += 1;
+            if (direction != 0) facing = direction;
+
+            // Shift dashes the way he's moving (or facing), once the cooldown is done
+            DashCooldownLeft = MathF.Max(0, DashCooldownLeft - dt);
+            if (DashCooldownLeft == 0 && (IsNewKeyPress(Keys.LeftShift) || IsNewKeyPress(Keys.RightShift)))
             {
-                if (currentLane > 1)
-                {
-                    currentLane--;
-                    position.X -= 200;
-                }
+                dashTimeLeft = DASH_TIME;
+                DashCooldownLeft = DashCooldown;
             }
-            if (currentKeyboardState.IsKeyDown(Keys.Right) && previousKeyboardState.IsKeyUp(Keys.Right) || currentKeyboardState.IsKeyDown(Keys.D) && previousKeyboardState.IsKeyUp(Keys.D))
+
+            // Walk speed, or dash speed while the dash lasts
+            float speed = MOVE_SPEED * direction;
+            if (dashTimeLeft > 0)
             {
-                if (currentLane < 3)
+                dashTimeLeft -= dt;
+                speed = DASH_SPEED * facing;
+            }
+            position.X = MathHelper.Clamp(position.X + speed * dt, MIN_X, MAX_X);
+
+            // Space, W or Up jumps (only from the ground)
+            if (!isJumping && (IsNewKeyPress(Keys.Space) || IsNewKeyPress(Keys.W) || IsNewKeyPress(Keys.Up)))
+            {
+                isJumping = true;
+                verticalSpeed = -JUMP_SPEED;
+            }
+
+            // In the air: gravity pulls him back down until he lands
+            if (isJumping)
+            {
+                verticalSpeed += GRAVITY * dt;
+                position.Y += verticalSpeed * dt;
+                if (position.Y >= GROUND_Y)
                 {
-                    currentLane++;
-                    position.X += 200;
+                    position.Y = GROUND_Y;
+                    isJumping = false;
                 }
             }
 
             previousKeyboardState = currentKeyboardState; // Keeps buttons from being triggered multiple times
 
-            // Velocity = distance moved / time
-            // Zero unless player switched lanes this frame
-            float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
-            Velocity = dt > 0 ? (position - startPosition) / dt : Vector2.Zero;
+            // Velocity = distance moved / time, only while dashing (the dash trail uses it)
+            Velocity = dashTimeLeft > 0 && dt > 0 ? (position - startPosition) / dt : Vector2.Zero;
         }
+
+        // True only on the frame a key goes down (holding it doesn't repeat)
+        private bool IsNewKeyPress(Keys key) => currentKeyboardState.IsKeyDown(key) && previousKeyboardState.IsKeyUp(key);
 
 
         /// <summary>
@@ -117,7 +163,13 @@ namespace Runner_Game
         {
             animationTimer += gameTime.ElapsedGameTime.TotalSeconds;
 
-            if (animationTimer > ANIMATION_SPEED)
+            // Jumping interrupts the run: hold one frame until he lands
+            if (isJumping)
+            {
+                animationFrame = JUMP_FRAME;
+                animationTimer = 0;
+            }
+            else if (animationTimer > ANIMATION_SPEED)
             {
                 animationFrame++;
                 if (animationFrame > FRAME_COUNT - 1) animationFrame = 0;

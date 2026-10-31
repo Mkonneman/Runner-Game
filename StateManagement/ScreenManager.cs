@@ -54,7 +54,7 @@ namespace Runner_Game.StateManagement
         protected override void LoadContent()
         {
             SpriteBatch = new SpriteBatch(GraphicsDevice);
-            MenuFont = _content.Load<SpriteFont>("EnjoyFont"); // Uses the game's existing font
+            MenuFont = _content.Load<SpriteFont>("Fonts/EnjoyFont"); // Uses the game's existing font
 
             // Tell each of the screens to load thier content
             foreach (var screen in _screens)

@@ -14,7 +14,7 @@ namespace Runner_Game
 
         protected override void InitializeConstants()
         {
-            textureFilename = "particle";
+            textureFilename = "Images/Particles/particle";
             minNumParticles = 1;
             maxNumParticles = 1;
 
