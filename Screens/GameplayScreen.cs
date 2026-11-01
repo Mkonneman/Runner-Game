@@ -25,6 +25,7 @@ namespace Runner_Game.Screens
         // Audio Handling for the game
         private Song _runnerMusic;
         private SoundEffect _crashSound;
+        private SoundEffect _swingSound;   // whoosh on every hammer swing, hit or miss
 
         // Makes multiple bolders
         private List<Bolders> _bolders = new();
@@ -58,7 +59,7 @@ namespace Runner_Game.Screens
         private float _lanternTime;
         private Texture2D _pixel;
         private readonly List<(float X, bool IsWall, bool Crystal)> _spikes = new();  // X of each obstacle, whether it's a breakable wall or a crystal spike, and which wall look
-        private float _spikeTimer = 3f;                   // seconds until the next one
+        private float _spikeTimer = 4f;                   // seconds until the next one
         private const float SpikeSpeed = 260f;            // same as the floor so they look stuck in it
         private const float SpikeBottom = 471f;           // floor line where his feet touch
         private static readonly Rectangle SpikeSource = new Rectangle(27, 0, 74, 80); // top of the crystal (the rest is "in the floor")
@@ -72,7 +73,13 @@ namespace Runner_Game.Screens
         // Swipe drawn when he smashes, an arc that sweeps down in front of him then fades
         private const float SwipeTime = 0.2f;     // how long the swipe lasts
         private float _swipeLeft;
-        private const float SpawnInterval = 1.5f; // seconds between spawns
+
+        // Difficulty ramps up from 0 to 1 over the first RampTime seconds so the start is chill and it gets crazy later
+        private const float RampTime = 90f;
+        private float Difficulty => MathHelper.Clamp(_scrollTime / RampTime, 0, 1);
+        private float SpawnInterval => MathHelper.Lerp(2.6f, 1.2f, Difficulty);  // seconds between rocks
+        private const float WallStartTime = 12f;          // just spikes at first, walls come in after this
+        private const float GapStartTime = 20f;           // floor holes stay filled in until this
 
         // Bool for ending the game
         private bool _isGameOver;
@@ -100,9 +107,24 @@ namespace Runner_Game.Screens
         {
             ("Images/Cave/cave_wall", 30f, 0f),
             ("Images/Cave/cave_pillars", 80f, -52f), // pulled up so the ceiling touches the top of the screen
-            ("Images/Cave/cave_floor", SpikeSpeed, 20f),  // Want to make it look like the player is walking on the floor
         };
         private Texture2D[] _caveLayers;
+
+        // The floor is a tilemap now (cut from the old floor art) so it can have gaps in it
+        private Tilemap _floor;
+        private const float FloorY = 452f;                // top of the floor tiles, same spot the old floor art sat
+        private const int GapTile = 11;
+        private bool _falling;                            // fell in a gap, he's a goner
+        private float FloorScroll => _scrollTime * SpikeSpeed;
+
+        // Laser beams that fire down from the ceiling, a thin warning line first then ZAP
+        private readonly List<(float X, float Time)> _lasers = new();
+        private float _laserTimer = 30f;                  // first one well into the run
+        private const float LaserFollowSpeed = 140f;      // how fast the warning line slides after him (slower than he runs so you can outrun it)
+        private const float LaserWarn = 1f;               // how long the warning line shows
+        private const float LaserFire = 0.45f;            // how long the beam is on
+        private const float LaserWidth = 18f;
+        private const float LaserDamage = 0.5f;
 
         // How long the cave has been scrolling (stops when he crashes)
         private float _scrollTime;
@@ -159,6 +181,7 @@ namespace Runner_Game.Screens
             // Loads the music and sounds for the game
             _runnerMusic = _content.Load<Song>("Audio/Music/court_death");
             _crashSound = _content.Load<SoundEffect>("Audio/Sfx/crash");
+            _swingSound = _content.Load<SoundEffect>("Audio/Sfx/swing");
             _spikeTexture = _content.Load<Texture2D>("Images/Gameplay/stalactite");
             _wallTexture = _content.Load<Texture2D>("Images/Gameplay/wall_stone");
             _crystalWallTexture = _content.Load<Texture2D>("Images/Gameplay/wall_crystal");
@@ -169,6 +192,7 @@ namespace Runner_Game.Screens
             _smashIcon = _content.Load<Texture2D>("Images/HUD/SmashCooldownButton");
             _pixel = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
+            _floor = new Tilemap(_content, "Images/Cave/floor_tiles", "Maps/cave_floor.txt");
 
             // Fresh player for each run
             _runner = new();
@@ -214,6 +238,21 @@ namespace Runner_Game.Screens
 
             _runner.Update(gameTime);
 
+            // Gaps in the floor, step in one while on the ground and down he goes (a dash carries him over though!)
+            if (!_falling && _runner.IsOnGround && !_runner.IsDashing && _floor.TileAtLooping(0, FloorScroll, _runner.Position.X, FloorTile) == GapTile)
+            {
+                _runner.Fall();
+                _falling = true;
+            }
+            if (_falling)
+            {
+                if (_runner.Position.Y > ScreenManager.GraphicsDevice.Viewport.Height + 150) Crash(new Color(20, 30, 60));
+                return;
+            }
+
+            UpdateLasers((float)gameTime.ElapsedGameTime.TotalSeconds);
+            if (_isGameOver) return;
+
             // Spawn a new bolder at a random X every SpawnInterval seconds
             _spawnTimer += (float)gameTime.ElapsedGameTime.TotalSeconds;
             if (_spawnTimer >= SpawnInterval)
@@ -222,12 +261,12 @@ namespace Runner_Game.Screens
                 float x = RandomHelper.NextFloat(RockMinX, RockMaxX);
                 SpawnBolder(x);
 
-                // Rare double rock (about 1 in 6) on the far side so they never overlap
-                if (RandomHelper.Next(0, 5) == 0)
+                // Rare double rock (about 1 in 6) on the far side so they never overlap, only once things heat up
+                if (Difficulty > 0.35f && RandomHelper.Next(0, 5) == 0)
                     SpawnBolder(x < 400 ? RandomHelper.NextFloat(x + 300, RockMaxX + 60) : RandomHelper.NextFloat(RockMinX - 60, x - 300));
             }
 
-            // Spike every 3-6 seconds, sliding in from the right
+            // Spikes slide in from the right, every 6-9 seconds at the start down to 3-5 later
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _spikeTimer -= dt;
             _hurtTime -= dt;
@@ -235,9 +274,16 @@ namespace Runner_Game.Screens
             if (_spikeTimer <= 0)
             {
                 // About 1 in 3 is a wall (half of them crystal), walls start further out so the ! warning shows first
-                bool isWall = RandomHelper.Next(0, 2) == 0;
-                _spikes.Add((ScreenManager.GraphicsDevice.Viewport.Width + (isWall ? WallWarningDistance : SpikeSource.Width), isWall, RandomHelper.Next(0, 1) == 0));
-                _spikeTimer = RandomHelper.NextFloat(3f, 6f);
+                bool isWall = _scrollTime > WallStartTime && RandomHelper.Next(0, 2) == 0;
+                float x = ScreenManager.GraphicsDevice.Viewport.Width + (isWall ? WallWarningDistance : SpikeSource.Width);
+
+                // Never put one over a gap (looks weird), just try again a moment later once the gap has moved past
+                if (OverGap(x, isWall ? _wallTexture.Width : SpikeSource.Width)) _spikeTimer = 0.2f;
+                else
+                {
+                    _spikes.Add((x, isWall, RandomHelper.Next(0, 1) == 0));
+                    _spikeTimer = RandomHelper.NextFloat(MathHelper.Lerp(6f, 3f, Difficulty), MathHelper.Lerp(9f, 5f, Difficulty));
+                }
             }
             // Down or S smashes a wall in reach, then cools down (even on a miss, so timing it takes skill)
             _smashCooldownLeft = MathF.Max(0, _smashCooldownLeft - dt);
@@ -249,6 +295,7 @@ namespace Runner_Game.Screens
                 _smashCooldownLeft = SmashCooldown;
                 _swipeLeft = SwipeTime;
                 _swipeReach = SmashReach();
+                _swingSound.Play(0.8f, RandomHelper.NextFloat(-0.15f, 0.15f), 0f);  // little pitch change so it doesnt get repetitive
                 SmashInReach();
             }
 
@@ -302,6 +349,48 @@ namespace Runner_Game.Screens
                     _bolders.RemoveAt(i);
                 }
             }
+        }
+
+        /// <summary>
+        /// Spawns a laser every so often that follows him while it warns, then hurts him if he's in the beam when it fires
+        /// </summary>
+        private void UpdateLasers(float dt)
+        {
+            _laserTimer -= dt;
+            if (_laserTimer <= 0)
+            {
+                _lasers.Add((_runner.Position.X, 0));
+                _laserTimer = RandomHelper.NextFloat(MathHelper.Lerp(14f, 7f, Difficulty), MathHelper.Lerp(20f, 11f, Difficulty));  // rare at first, more often later
+            }
+
+            for (int i = _lasers.Count - 1; i >= 0; i--)
+            {
+                var (x, time) = _lasers[i];
+                time += dt;
+
+                // While warning it slides toward him, then locks in place when it fires
+                if (time < LaserWarn) x += MathHelper.Clamp(_runner.Position.X - x, -LaserFollowSpeed * dt, LaserFollowSpeed * dt);
+                _lasers[i] = (x, time);
+                var r = _runner.Bounds;
+                bool firing = time >= LaserWarn;
+                if (firing && !Phasing && MathF.Abs(r.X + r.Width / 2 - x) < r.Width / 2 + LaserWidth / 2)
+                {
+                    Hurt(LaserDamage, Color.Red);
+                    if (_isGameOver) return;
+                }
+                if (time > LaserWarn + LaserFire) _lasers.RemoveAt(i);
+            }
+        }
+
+        // Holes only show up once they come in from off screen after GapStartTime, before that they're plain floor (so one never pops open under him)
+        private int FloorTile(int column, int id) => id >= 9 && column * Tilemap.TileSize < GapStartTime * SpikeSpeed + 800 ? 1 : id;
+
+        // True if any floor tile under this spot is a gap or a gap's crumbly edge (spikes slide with the floor so it stays true)
+        private bool OverGap(float centerX, float width)
+        {
+            for (float x = centerX - width / 2 - Tilemap.TileSize; x <= centerX + width / 2 + Tilemap.TileSize; x += Tilemap.TileSize / 2)
+                if (_floor.TileAtLooping(0, FloorScroll, x, FloorTile) >= 9) return true;
+            return false;
         }
 
         // Where the lantern hangs, clipped to his back hip
@@ -525,6 +614,17 @@ namespace Runner_Game.Screens
                 }
             }
 
+            // The tilemap floor scrolls at the same speed the spikes slide so everything looks stuck to it
+            _floor.DrawLooping(spriteBatch, 0, FloorScroll, FloorY, Color.White * TransitionAlpha, viewport.Width, FloorTile);
+
+            // Laser warnings, a thin blinking line from the emitter on the ceiling
+            foreach (var (x, time) in _lasers)
+            {
+                spriteBatch.Draw(_pixel, new Rectangle((int)x - 14, 0, 28, 12), new Color(40, 40, 50) * TransitionAlpha);
+                if (time < LaserWarn && (int)(time * 12) % 2 == 0)
+                    spriteBatch.Draw(_pixel, new Rectangle((int)x - 1, 12, 2, (int)FloorY - 12), Color.Red * 0.6f * TransitionAlpha);
+            }
+
             // Draw the ground obstacles, walls on the floor and crystals tinted blue to match the cave
             foreach (var spike in _spikes)
             {
@@ -621,6 +721,18 @@ namespace Runner_Game.Screens
             spriteBatch.Draw(_glowTexture, flame, null, new Color(255, 150, 50) * 0.6f * flicker * TransitionAlpha, 0f, new Vector2(8), 14f, SpriteEffects.None, 0f);
             spriteBatch.Draw(_glowTexture, flame, null, new Color(255, 190, 90) * flicker * TransitionAlpha, 0f, new Vector2(8), 6f, SpriteEffects.None, 0f);
             spriteBatch.Draw(_glowTexture, flame, null, new Color(255, 235, 150) * flicker * TransitionAlpha, 0f, new Vector2(8), 2.5f, SpriteEffects.None, 0f);
+
+            // ZAP, firing lasers are added light so they glow (red outside, white hot in the middle)
+            foreach (var (x, time) in _lasers)
+            {
+                if (time < LaserWarn) continue;
+                float beam = 1 - (time - LaserWarn) / LaserFire;  // thins out as it ends
+                int w = (int)(LaserWidth * (0.4f + 0.6f * beam));
+                spriteBatch.Draw(_pixel, new Rectangle((int)x - w, 12, w * 2, (int)FloorY - 12), new Color(255, 30, 20) * 0.35f * TransitionAlpha);
+                spriteBatch.Draw(_pixel, new Rectangle((int)x - w / 2, 12, w, (int)FloorY - 12), new Color(255, 60, 40) * TransitionAlpha);
+                spriteBatch.Draw(_pixel, new Rectangle((int)x - w / 6, 12, Math.Max(2, w / 3), (int)FloorY - 12), new Color(255, 230, 220) * TransitionAlpha);
+                spriteBatch.Draw(_glowTexture, new Vector2(x, FloorY), null, new Color(255, 80, 40) * beam * TransitionAlpha, 0f, new Vector2(8), 4f, SpriteEffects.None, 0f);
+            }
             spriteBatch.End();
 
             _embers.TransformMatrix = shake;

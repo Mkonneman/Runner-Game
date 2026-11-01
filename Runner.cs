@@ -62,6 +62,19 @@ namespace Runner_Game
         private const int JUMP_FRAME = 2;        // Freezes the player run animation when jumping
         private float verticalSpeed;
         private bool isJumping;
+        private bool isFalling;                  // Fell in a gap, no landing anymore
+
+        public bool IsOnGround => !isJumping;
+
+        /// <summary>
+        /// Drops him into a gap (gravity takes over and he never lands)
+        /// </summary>
+        public void Fall()
+        {
+            isFalling = true;
+            isJumping = true;
+            verticalSpeed = 0;
+        }
 
         /// <summary>
         /// Gets the bounding rectangle of the sprite, adjusted for its position and scale
@@ -126,7 +139,7 @@ namespace Runner_Game
             position.X = MathHelper.Clamp(position.X + speed * dt, MIN_X, MAX_X);
 
             // Space, W or Up jumps (only from the ground)
-            if (!isJumping && (IsNewKeyPress(Keys.Space) || IsNewKeyPress(Keys.W) || IsNewKeyPress(Keys.Up)))
+            if (!isJumping && !isFalling && (IsNewKeyPress(Keys.Space) || IsNewKeyPress(Keys.W) || IsNewKeyPress(Keys.Up)))
             {
                 isJumping = true;
                 verticalSpeed = -JUMP_SPEED;
@@ -137,7 +150,7 @@ namespace Runner_Game
             {
                 verticalSpeed += GRAVITY * dt;
                 position.Y += verticalSpeed * dt;
-                if (position.Y >= GROUND_Y)
+                if (position.Y >= GROUND_Y && !isFalling)
                 {
                     position.Y = GROUND_Y;
                     isJumping = false;

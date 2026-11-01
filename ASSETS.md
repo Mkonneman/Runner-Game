@@ -7,6 +7,7 @@ Music (Content/Audio/Music)
 
 Sound Effects (Content/Audio/Sfx)
 - crash.wav – Procedurally generated sound effect, created with Claude (Anthropic) using Python/NumPy
+- swing.wav – Procedurally generated hammer whoosh, created with Claude (Anthropic) using Python/NumPy
 
 Fonts (Content/Fonts)
 - alagard.ttf (TitleFont) – "Alagard" by Hewett Tsoi, 100% Free, Dafont (https://www.dafont.com/alagard.font)
@@ -32,6 +33,10 @@ Gameplay (Content/Images/Gameplay)
 - stalactite.png – AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs)
 - wall_stone.png, wall_crystal.png, hammer.png – AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs)
 
+Floor Tilemap (Content/Images/Cave, Content/Maps)
+- floor_tiles.png – Tileset sliced from cave_floor.png with Python/Pillow (gap edges and pit drawn in code)
+- cave_floor.txt – Tilemap layout for the looping floor and its gaps
+
 HUD (Content/Images/HUD)
 - CooldownShiftButton.png, SmashCooldownButton.png – Button icons, Hand-Made in Photoshop by Maxwell Konneman
 
@@ -47,3 +52,4 @@ Unused (Content/Unused, still in the project but not loaded in-game)
 - Final Dash.mp3 – Suno AI-generated music, Suno (https://suno.com) (replaced by eraser.wav)
 - lane_switch.wav – Procedurally generated with Claude (Anthropic) using Python/NumPy (removed from the project)
 - Enjoy Journey.otf – Free Public Domain Font, Dafont (https://www.dafont.com/) (replaced by Alagard, Upheaval and Pixellari)
+- golem.png, arena_tiles.png – Boss and arena art from the cut boss fight, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs)
