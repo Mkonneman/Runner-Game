@@ -28,12 +28,10 @@ namespace Runner_Game
         private float scale = 4f;
 
         // Creates input dectecing variables to detect and hold what input is gathered 
-        protected KeyboardState currentKeyboardState;
-        protected KeyboardState previousKeyboardState;
 
         // Texture and position 
         private Texture2D texture;
-        private Vector2 position = new Vector2(400, 475);
+        private Vector2 position = new Vector2(427, 475);
         public Vector2 Position { get => position; set => position = value; } // Settable so the title screen can run him into the cave
 
         // Tint for the sprite in the title
@@ -44,13 +42,14 @@ namespace Runner_Game
         // Decided to free the player to move around
         private const float MOVE_SPEED = 320f;
         private const float MIN_X = 60f;
-        private const float MAX_X = 740f;
+        private const float MAX_X = 794f;
         private int facing = 1;                 // This is for the dash
 
         // Dash: This is quick burst in the direction he's moving, its tied to a cooldown
         private const float DASH_SPEED = 1400f;
         private const float DASH_TIME = 0.15f;   // How long the burst lasts (Might let this be upgraded)
-        public readonly float DashCooldown = Shop.Value(Upgrade.Dash);   // Seconds before he can dash again (Also upgradable)
+        public float DashCooldown = Shop.Value(ItemId.Dash);   // Seconds before he can dash again (upgradable in the shop)
+        public bool CanDash = true;                            // only when Dash is the equipped ability
         private float dashTimeLeft;
         public bool IsDashing => dashTimeLeft > 0;
         public float DashCooldownLeft { get; private set; }  // 0 = ready (The cooldown UI reads this)
@@ -64,6 +63,10 @@ namespace Runner_Game
         private bool isJumping;
         private bool isFalling;                  // Fell in a gap, no landing anymore
 
+        // Spring Boots, how much higher a full held jump goes (1 = normal jump, no short hops)
+        public float JumpBoost = 1f;
+        private bool jumpCut;                    // let go early so the jump got cut short already
+
         public bool IsOnGround => !isJumping;
 
         /// <summary>
@@ -74,6 +77,17 @@ namespace Runner_Game
             isFalling = true;
             isJumping = true;
             verticalSpeed = 0;
+        }
+
+        /// <summary>
+        /// Puts him back on his feet (Phoenix Heart saved him)
+        /// </summary>
+        public void Revive()
+        {
+            isFalling = false;
+            isJumping = false;
+            verticalSpeed = 0;
+            position.Y = GROUND_Y;
         }
 
         /// <summary>
@@ -105,25 +119,26 @@ namespace Runner_Game
         /// Updates the sprite's position based on user input
         /// </summary>
         /// <param name="gameTime">The GameTime</param>
+        // When set he walks himself to this X and ignores the controls (the end door cutscene)
+        public float? AutoWalkTo;
+
         public void Update(GameTime gameTime)
         {
             // Helps detect the players velocity for particles
             Vector2 startPosition = position;
 
-            // Grab Keyboard input 
-            currentKeyboardState = Keyboard.GetState();
-
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            // Hold Left/A or Right/D to move, kept on screen
+            // Hold left or right to move, kept on screen (keys come from Controls so they can be rebound)
             int direction = 0;
-            if (currentKeyboardState.IsKeyDown(Keys.Left) || currentKeyboardState.IsKeyDown(Keys.A)) direction -= 1;
-            if (currentKeyboardState.IsKeyDown(Keys.Right) || currentKeyboardState.IsKeyDown(Keys.D)) direction += 1;
+            if (Controls.IsDown(PlayerAction.Left)) direction -= 1;
+            if (Controls.IsDown(PlayerAction.Right)) direction += 1;
+            if (AutoWalkTo is float target) direction = MathF.Abs(target - position.X) > 3 ? MathF.Sign(target - position.X) : 0;
             if (direction != 0) facing = direction;
 
-            // Shift dashes the way he's moving (or facing), once the cooldown is done
+            // Dash goes the way he's moving (or facing), once the cooldown is done
             DashCooldownLeft = MathF.Max(0, DashCooldownLeft - dt);
-            if (DashCooldownLeft == 0 && (IsNewKeyPress(Keys.LeftShift) || IsNewKeyPress(Keys.RightShift)))
+            if (AutoWalkTo == null && CanDash && DashCooldownLeft == 0 && Controls.IsPressed(PlayerAction.Dash))
             {
                 dashTimeLeft = DASH_TIME;
                 DashCooldownLeft = DashCooldown;
@@ -138,11 +153,19 @@ namespace Runner_Game
             }
             position.X = MathHelper.Clamp(position.X + speed * dt, MIN_X, MAX_X);
 
-            // Space, W or Up jumps (only from the ground)
-            if (!isJumping && !isFalling && (IsNewKeyPress(Keys.Space) || IsNewKeyPress(Keys.W) || IsNewKeyPress(Keys.Up)))
+            // Jump (only from the ground)
+            if (AutoWalkTo == null && !isJumping && !isFalling && Controls.IsPressed(PlayerAction.Jump))
             {
                 isJumping = true;
-                verticalSpeed = -JUMP_SPEED;
+                jumpCut = false;
+                verticalSpeed = -JUMP_SPEED * JumpBoost;
+            }
+
+            // With Spring Boots letting go of jump on the way up cuts it short, so tap = hop and hold = big jump
+            if (JumpBoost > 1f && isJumping && !isFalling && !jumpCut && verticalSpeed < 0 && !Controls.IsDown(PlayerAction.Jump))
+            {
+                verticalSpeed *= 0.45f;
+                jumpCut = true;
             }
 
             // In the air: gravity pulls him back down until he lands
@@ -157,14 +180,10 @@ namespace Runner_Game
                 }
             }
 
-            previousKeyboardState = currentKeyboardState; // Keeps buttons from being triggered multiple times
-
             // Velocity = distance moved / time, only while dashing (the dash trail uses it)
             Velocity = dashTimeLeft > 0 && dt > 0 ? (position - startPosition) / dt : Vector2.Zero;
         }
 
-        // True only on the frame a key goes down (holding it doesn't repeat)
-        private bool IsNewKeyPress(Keys key) => currentKeyboardState.IsKeyDown(key) && previousKeyboardState.IsKeyUp(key);
 
 
         /// <summary>

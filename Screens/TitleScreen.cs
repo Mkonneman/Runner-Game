@@ -31,7 +31,7 @@ namespace Runner_Game.Screens
         private Runner _runner;
         private const float GroundY = 408f;      // top of the ground layer
         private const float RunnerStartX = 200f;
-        private const float CaveMouthX = 525f;   // middle of the cave opening
+        private const float CaveMouthX = 552f;   // middle of the cave opening
         private const float RunSpeed = 220f;     // same as the ground so his steps match
 
         // How long the background has been scrolling
@@ -45,10 +45,13 @@ namespace Runner_Game.Screens
         private float _blinkTimer;
 
         // Stone buttons in a row under the logo (click them, or Tab for the shop)
-        private static readonly Rectangle ShopButton = new Rectangle(145, 245, 160, 48);
-        private static readonly Rectangle HowToPlayButton = new Rectangle(320, 245, 160, 48);
-        private static readonly Rectangle SettingsButton = new Rectangle(495, 245, 160, 48);
+        private int _selectedButton = -1;  // which button the keys / controller picked (-1 means none, Enter just plays)
+        private static readonly Rectangle ShopButton = new Rectangle(129, 245, 140, 48);
+        private static readonly Rectangle GearButton = new Rectangle(281, 245, 140, 48);
+        private static readonly Rectangle HowToPlayButton = new Rectangle(433, 245, 140, 48);
+        private static readonly Rectangle SettingsButton = new Rectangle(585, 245, 140, 48);
         private Texture2D _button;
+        private Texture2D _shopIcon;  // gem pouch with a hammer and gear (oooh)
         private Texture2D _logo;
 
         // Glowing red eyes in the cave, with sparks drifting up from them
@@ -73,6 +76,7 @@ namespace Runner_Game.Screens
             _pixel = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
             _button = content.Load<Texture2D>("Images/Menu/button");
+            _shopIcon = content.Load<Texture2D>("Images/Menu/shop_icon");
             _logo = content.Load<Texture2D>("Images/Menu/logo");
             _glow = content.Load<Texture2D>("Images/Particles/particle");
             _eyeSparks = new SparkParticleSystem(ScreenManager.Game, new Color(255, 60, 40), 1.2f, 0.3f, new Vector2(0, -20), new Vector2(0, -20), wobble: 8, wobbleSpeed: 3);
@@ -138,34 +142,35 @@ namespace Runner_Game.Screens
 
         public override void HandleInput(GameTime gameTime, InputState input)
         {
-            // Enter or Space sends the runner into the cave (the game starts when he gets there)
-            if (input.IsNewKeyPress(Keys.Enter) || input.IsNewKeyPress(Keys.Space) || input.IsNewButtonPress(Buttons.Start))
-            {
-                _enteringCave = true;
-            }
+            // Left / Right (or the d-pad / stick) picks one of the 3 buttons, Up or Down drops back to Play
+            if (input.IsNewKeyPress(Keys.Right)) _selectedButton = Math.Min(_selectedButton + 1, 3);
+            if (input.IsNewKeyPress(Keys.Left)) _selectedButton = Math.Max(_selectedButton - 1, 0);
+            if (input.IsNewKeyPress(Keys.Down) || input.IsNewKeyPress(Keys.Up)) _selectedButton = -1;
 
-            // Buttons open the merchant or the settings (not once he's running into the cave)
-            var mouse = Mouse.GetState();
+            // Enter / A presses the picked button, or starts the run if none is picked. Space and Start always start
+            bool confirm = input.IsNewKeyPress(Keys.Enter);
+            bool start = input.CurrentKeyboardState.IsKeyDown(Keys.Space) && input.LastKeyboardState.IsKeyUp(Keys.Space) || input.IsNewButtonPress(Buttons.Start) || input.IsNewButtonPress(Buttons.RightTrigger);
+            if (confirm && _selectedButton < 0) start = true;
+            if (start) _enteringCave = true;
+
+            // Clicking works too, and Tab is still the shop shortcut
+            var mouse = VirtualMouse.GetState();
             bool click = mouse.LeftButton == ButtonState.Pressed && _lastMouse.LeftButton == ButtonState.Released;
+            if (mouse.Position != _lastMouse.Position) _selectedButton = -1;  // mouse takes over the highlight
             _lastMouse = mouse;
-            if (!_enteringCave && (click && ShopButton.Contains(mouse.Position) || input.IsNewKeyPress(Keys.Tab)))
+            int open = confirm && !start ? _selectedButton : -1;
+            if (click && ShopButton.Contains(mouse.Position) || input.IsNewKeyPress(Keys.Tab)) open = 0;
+            if (click && GearButton.Contains(mouse.Position)) open = 1;
+            if (click && HowToPlayButton.Contains(mouse.Position)) open = 2;
+            if (click && SettingsButton.Contains(mouse.Position)) open = 3;
+            if (!_enteringCave && open >= 0)
             {
-                ScreenManager.AddScreen(new ShopScreen());
-                return;
-            }
-            if (!_enteringCave && click && HowToPlayButton.Contains(mouse.Position))
-            {
-                ScreenManager.AddScreen(new HowToPlayScreen());
-                return;
-            }
-            if (!_enteringCave && click && SettingsButton.Contains(mouse.Position))
-            {
-                ScreenManager.AddScreen(new SettingsScreen());
+                ScreenManager.AddScreen(open == 0 ? new ShopScreen() : open == 1 ? new GearScreen() : open == 2 ? new HowToPlayScreen() : new SettingsScreen());
                 return;
             }
 
-            // Esc quits the game
-            if (input.IsNewKeyPress(Keys.Escape) || input.IsNewButtonPress(Buttons.Back))
+            // Esc quits the game (but not B on a controller, way too easy to hit by accident)
+            if (input.CurrentKeyboardState.IsKeyDown(Keys.Escape) && input.LastKeyboardState.IsKeyUp(Keys.Escape) || input.IsNewButtonPress(Buttons.Back))
             {
                 ScreenManager.Game.Exit();
             }
@@ -225,13 +230,14 @@ namespace Runner_Game.Screens
             // Blinks on and off about twice a second (hidden once he heads in)
             if (!_enteringCave && (int)(_blinkTimer * 2) % 2 == 0)
             {
-                DrawCentered("Press Enter to Start", 186, Color.Yellow, 0.75f, ScreenManager.BigFont);
+                DrawCentered(Controls.UsingPad ? "Press RT to Start" : "Press Enter to Start", 186, Color.Yellow, 0.75f, ScreenManager.BigFont);
             }
 
             // Buttons (lit up when the mouse is over them)
-            DrawButton(ShopButton, "Shop");
-            DrawButton(HowToPlayButton, "How to Play");
-            DrawButton(SettingsButton, "Settings");
+            DrawButton(ShopButton, "Shop", 0);
+            DrawButton(GearButton, "Gear", 1);
+            DrawButton(HowToPlayButton, "How to Play", 2);
+            DrawButton(SettingsButton, "Settings", 3);
 
             spriteBatch.End();
         }
@@ -244,16 +250,19 @@ namespace Runner_Game.Screens
         }
 
         // A button with its label centered in it
-        private void DrawButton(Rectangle button, string label)
+        private void DrawButton(Rectangle button, string label, int index)
         {
             var font = ScreenManager.TitleFont;
-            bool hover = button.Contains(Mouse.GetState().Position);
+            bool hover = button.Contains(VirtualMouse.GetState().Position) || index == _selectedButton;
             ScreenManager.SpriteBatch.Draw(_button, button, (hover ? Color.White : new Color(170, 180, 200)) * TransitionAlpha);
 
             // Label shrinks to fit long names like How to Play
             float scale = MathF.Min(0.65f, (button.Width - 28) / font.MeasureString(label).X);
             Vector2 size = font.MeasureString(label) * scale;
-            var position = new Vector2(button.Center.X - size.X / 2, button.Center.Y - size.Y / 2);
+            // Shop gets the gem pouch on the left and its text nudged over to make room
+            bool hasIcon = label == "Shop";
+            if (hasIcon) ScreenManager.SpriteBatch.Draw(_shopIcon, new Vector2(button.X + 14, button.Center.Y - _shopIcon.Height / 2), Color.White * TransitionAlpha);
+            var position = new Vector2(button.Center.X - size.X / 2 + (hasIcon ? 20 : 0), button.Center.Y - size.Y / 2);
             ScreenManager.SpriteBatch.DrawString(font, label, position + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             ScreenManager.SpriteBatch.DrawString(font, label, position, (hover ? Color.Yellow : Color.White) * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
         }

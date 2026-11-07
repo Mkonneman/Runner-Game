@@ -15,7 +15,10 @@ namespace Runner_Game
     {
         public const int TileSize = 32;
 
-        private readonly Texture2D _tileset;
+        private Texture2D _tileset;
+
+        // Swappable so the cave zones can draw the floor in a different color
+        public Texture2D Tileset { get => _tileset; set => _tileset = value; }
         private readonly int[,] _tiles;
 
         public int Columns => _tiles.GetLength(1);

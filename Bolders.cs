@@ -53,7 +53,7 @@ namespace Runner_Game
 
         // Texture and position 
         private Texture2D texture;
-        private Vector2 position = new Vector2(400, 475);
+        private Vector2 position = new Vector2(427, 475);
 
         // Position
         public Vector2 Position => position;

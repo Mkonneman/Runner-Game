@@ -5,15 +5,19 @@ using System.Text.Json;
 namespace Runner_Game
 {
     /// <summary>
-    /// Everything that gets saved (gems, upgrades and settings)
+    /// Everything that gets saved (gems, gear and settings)
     /// </summary>
     public class SaveData
     {
         public int Gems { get; set; }
-        public int[] UpgradeLevels { get; set; } = Array.Empty<int>();
+        public int[] UpgradeLevels { get; set; }   // the old shop, only read to convert old saves
+        public int[] ItemLevels { get; set; }
+        public string[] Equipped { get; set; }
         public float MusicVolume { get; set; } = 1f;
         public float SfxVolume { get; set; } = 1f;
         public float SmashRingOpacity { get; set; } = 0.25f;
+        public string[] KeyBindings { get; set; }
+        public int Checkpoint { get; set; }       // furthest cave reached (0 blue, 1 orange, 2 green)
     }
 
     /// <summary>
@@ -31,10 +35,13 @@ namespace Runner_Game
             var data = new SaveData
             {
                 Gems = Shop.Gems,
-                UpgradeLevels = Shop.Levels(),
+                ItemLevels = Shop.Levels(),
+                Equipped = Shop.EquippedNames(),
                 MusicVolume = Settings.MusicVolume,
                 SfxVolume = Settings.SfxVolume,
                 SmashRingOpacity = Settings.SmashRingOpacity,
+                KeyBindings = Controls.Save(),
+                Checkpoint = CaveZones.Checkpoint,
             };
             try
             {
@@ -56,10 +63,13 @@ namespace Runner_Game
                 var data = JsonSerializer.Deserialize<SaveData>(File.ReadAllText(SavePath));
                 if (data == null) return;
 
-                Shop.Load(data.Gems, data.UpgradeLevels);
+                // Saves from before the gear update get their old upgrades turned into gear
+                Shop.Load(data.Gems, data.ItemLevels ?? Shop.FromOldUpgrades(data.UpgradeLevels), data.Equipped);
                 Settings.MusicVolume = Math.Clamp(data.MusicVolume, 0, 1);
                 Settings.SfxVolume = Math.Clamp(data.SfxVolume, 0, 1);
                 Settings.SmashRingOpacity = Math.Clamp(data.SmashRingOpacity, 0, 1);
+                Controls.Load(data.KeyBindings);
+                CaveZones.Checkpoint = Math.Clamp(data.Checkpoint, 0, CaveZones.Count - 1);
             }
             catch (Exception e) when (e is IOException || e is JsonException || e is UnauthorizedAccessException) { }
         }
@@ -69,7 +79,8 @@ namespace Runner_Game
         /// </summary>
         public static void ResetPlayerData()
         {
-            Shop.Load(0, Array.Empty<int>());
+            Shop.Load(0, null, null);
+            CaveZones.Checkpoint = 0;
             Save();
         }
     }

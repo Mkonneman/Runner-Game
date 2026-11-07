@@ -7,6 +7,11 @@ using Runner_Game.StateManagement;
 namespace Runner_Game.Screens
 {
     /// <summary>
+    /// What ended the run, picks which pun list the death screen uses
+    /// </summary>
+    public enum DeathCause { Rock, Spike, Wall, Laser, Hole, Door }  // Door = made it to the end (not really a death lol)
+
+    /// <summary>
     /// The game over screen (a popup over the frozen game)
     /// </summary>
     public class GameOverScreen : GameScreen
@@ -19,11 +24,12 @@ namespace Runner_Game.Screens
         private Texture2D _pixel;
 
         // The two stone buttons side by side (click one or use the arrows and Enter)
-        private static readonly string[] Options = { "Play Again", "Main Menu" };
+        private static readonly string[] Options = { "Play Again", "Shop", "Main Menu" };
         private Texture2D _button;
+        private Texture2D _shopIcon;
         private int _selected;
 
-        // Rock puns for when you die, these go in order so they dont repeat till the list runs out (Might add more later lol)
+        // Rock puns for rocks (and anything without its own list), random every death (Might add more later lol)
         private static readonly string[] Puns =
         {
             "You've hit rock bottom.",
@@ -42,16 +48,83 @@ namespace Runner_Game.Screens
             "Rock and roll? More like rock and fall.",
             "Igneous-ignorance is not bliss.",
         };
-        private static int _nextPun;
+
+        // Walls get the most since you'll be seeing these a lot (oooh the wall roasts)
+        private static readonly string[] WallPuns =
+        {
+            "You hit a wall. Literally.",
+            "Brick-ed it.",
+            "The wall wins this round.",
+            "Wall: 1, You: 0.",
+            "Pro tip: walls don't move. You do.",
+            "You stone-walled yourself.",
+            "That wall had your name on it. Now it has your face.",
+            "Mortar-fied.",
+            "Another one bites the wall.",
+            "Hey, at least the wall is okay.",
+            "The smash button misses you.",
+            "You and the wall are on a first face basis now.",
+            "Bold strategy, running face first.",
+            "That wall is going to tell its friends about you.",
+        };
+
+        private static readonly string[] LaserPuns =
+        {
+            "You got zapped.",
+            "Laser focused... on you.",
+            "Shocking, really.",
+            "That red line was a hint.",
+            "Well, that was a beam-er.",
+        };
+
+        private static readonly string[] DoorPuns =
+        {
+            "Something big is waiting behind that door...",
+            "The boss is still getting ready. Come back soon!",
+            "You rocked it.",
+        };
+
+        private static readonly string[] HolePuns =
+        {
+            "You fell for it.",
+            "Hole-y moly.",
+            "Mind the gap.",
+            "That's one deep dive.",
+            "Gone, but not floor-gotten.",
+        };
+
+        private static readonly string[] SpikePuns =
+        {
+            "Get the point?",
+            "Crystal clear mistake.",
+            "That was a sharp decision.",
+        };
+        private static string _lastPun;  // so the same pun never shows twice in a row
         private readonly string _pun;
         private MouseState _lastMouse;
 
-        public GameOverScreen(GameScreen gameplay, int score)
+        private readonly bool _cleared;
+
+        public GameOverScreen(GameScreen gameplay, int score, DeathCause cause)
         {
+            _cleared = cause == DeathCause.Door;
             _gameplay = gameplay;
             _score = score;
-            _pun = Puns[_nextPun];
-            _nextPun = (_nextPun + 1) % Puns.Length;
+
+            // Random pun picked from whatever killed you (rerolls if it's the one you just saw)
+            var puns = cause switch
+            {
+                DeathCause.Wall => WallPuns,
+                DeathCause.Laser => LaserPuns,
+                DeathCause.Hole => HolePuns,
+                DeathCause.Spike => SpikePuns,
+                DeathCause.Door => DoorPuns,
+                _ => Puns,
+            };
+            string pick;
+            do pick = puns[RandomHelper.Next(0, puns.Length - 1)]; while (pick == _lastPun);
+            _lastPun = pick;
+            _pun = pick;
 
             // Popup so the crashed game stays visible behind it
             IsPopup = true;
@@ -64,17 +137,18 @@ namespace Runner_Game.Screens
             _pixel = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
             _button = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/button");
+            _shopIcon = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/shop_icon");
         }
 
         public override void HandleInput(GameTime gameTime, InputState input)
         {
             // Arrows or WASD move between the buttons
-            if (input.IsNewKeyPress(Keys.Left) || input.IsNewKeyPress(Keys.A) || input.IsNewKeyPress(Keys.Up) || input.IsNewKeyPress(Keys.W)) _selected = 0;
-            if (input.IsNewKeyPress(Keys.Right) || input.IsNewKeyPress(Keys.D) || input.IsNewKeyPress(Keys.Down) || input.IsNewKeyPress(Keys.S)) _selected = 1;
+            if (input.IsNewKeyPress(Keys.Left) || input.IsNewKeyPress(Keys.A)) _selected = Math.Max(_selected - 1, 0);
+            if (input.IsNewKeyPress(Keys.Right) || input.IsNewKeyPress(Keys.D)) _selected = Math.Min(_selected + 1, Options.Length - 1);
             bool choose = input.IsNewKeyPress(Keys.Enter) || input.IsNewKeyPress(Keys.Space) || input.IsNewButtonPress(Buttons.Start);
 
             // Hovering a button selects it, clicking it chooses it
-            var mouse = Mouse.GetState();
+            var mouse = VirtualMouse.GetState();
             for (int i = 0; i < Options.Length; i++)
             {
                 if (OptionRectangle(i).Contains(mouse.Position))
@@ -95,10 +169,11 @@ namespace Runner_Game.Screens
             ExitScreen();
             _gameplay.ExitScreen();
             if (_selected == 0) ScreenManager.AddScreen(new GameplayScreen());
+            if (_selected == 1) ScreenManager.AddScreen(new ShopScreen());  // spend those gems right away, Back drops you on the title
         }
 
         // Clickable area of a button, both are centered on the screen
-        private Rectangle OptionRectangle(int i) => new Rectangle(ScreenManager.GraphicsDevice.Viewport.Width / 2 - 175 + i * 190, 320, 160, 48);
+        private Rectangle OptionRectangle(int i) => new Rectangle(ScreenManager.GraphicsDevice.Viewport.Width / 2 - 255 + i * 175, 320, 160, 48);  // 3 buttons centered
 
         public override void Draw(GameTime gameTime)
         {
@@ -110,7 +185,8 @@ namespace Runner_Game.Screens
             // Darken the game behind so the text stands out
             spriteBatch.Draw(_pixel, new Rectangle(0, 0, viewport.Width, viewport.Height), Color.Black * 0.6f * TransitionAlpha);
 
-            DrawCentered("You Died", 80, Color.Red, 1.6f, ScreenManager.BigFont);
+            if (_cleared) DrawCentered("Cave Cleared!", 80, Color.LimeGreen, 1.3f, ScreenManager.BigFont);
+            else DrawCentered("You Died", 80, Color.Red, 1.6f, ScreenManager.BigFont);
 
             // This deaths pun (shrinks if its too wide for the screen)
             var font = ScreenManager.MenuFont;
@@ -128,7 +204,10 @@ namespace Runner_Game.Screens
                 spriteBatch.Draw(_button, rect, (selected ? Color.White : new Color(170, 180, 200)) * TransitionAlpha);
                 float scale = MathF.Min(0.65f, (rect.Width - 28) / buttonFont.MeasureString(Options[i]).X);
                 Vector2 size = buttonFont.MeasureString(Options[i]) * scale;
-                var position = new Vector2(rect.Center.X - size.X / 2, rect.Center.Y - size.Y / 2);
+                // Shop gets the gem pouch on the left and its text nudged over to make room
+                bool hasIcon = Options[i] == "Shop";
+                if (hasIcon) ScreenManager.SpriteBatch.Draw(_shopIcon, new Vector2(rect.X + 14, rect.Center.Y - _shopIcon.Height / 2), Color.White * TransitionAlpha);
+                var position = new Vector2(rect.Center.X - size.X / 2 + (hasIcon ? 20 : 0), rect.Center.Y - size.Y / 2);
                 spriteBatch.DrawString(buttonFont, Options[i], position + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
                 spriteBatch.DrawString(buttonFont, Options[i], position, (selected ? Color.Yellow : Color.White) * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
             }

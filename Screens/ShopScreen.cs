@@ -1,6 +1,7 @@
 using System;
-using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xna.Framework;
+using Microsoft.Xna.Framework.Audio;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 using Microsoft.Xna.Framework.Media;
@@ -9,7 +10,7 @@ using Runner_Game.StateManagement;
 namespace Runner_Game.Screens
 {
     /// <summary>
-    /// The merchants shop, opened from the title to spend gems on upgrades
+    /// The merchants shop, buy new gear and upgrade what you own (equipping happens in the Gear screen)
     /// </summary>
     public class ShopScreen : GameScreen
     {
@@ -17,11 +18,13 @@ namespace Runner_Game.Screens
         private Texture2D _background;
         private Texture2D _merchant;
         private Texture2D _gem;
-        private Texture2D[] _icons;
+        private Texture2D _button;
+        private Texture2D[] _icons;   // one per item, same order as Shop.Items
         private Texture2D _pixel;
 
         // Shop music, the title music fades out then this fades in (sounds so much smoother)
         private Song _shopMusic;
+        private SoundEffect _buySound;
         private const float MusicFadeSpeed = 2f;   // volume per second (half a second each way)
 
         // Flickering lamp glows with green sparks floating up from them
@@ -35,17 +38,22 @@ namespace Runner_Game.Screens
         private static readonly Vector2[] Eyes = { new(192, 128), new(230, 128) }; // eye centers in merchant.png
         private float _blinkTimer = 3f;
 
-        // Icon files in the same order as the Upgrade enum
-        private static readonly string[] IconNames = { "Images/Shop/upgrade_boots", "Images/Shop/upgrade_dash", "Images/Shop/upgrade_heart", "Images/Shop/upgrade_hammer", "Images/Shop/upgrade_shield", "Images/Shop/upgrade_points" };
+        // Tabs for each gear slot across the top, items in a 4 wide grid under them, then Gear and Back at the bottom
+        private static readonly string[] TabNames = { "Weapons", "Abilities", "Armor" };
+        private const int GridX = 330;
+        private const int GridY = 108;
+        private const int Columns = 4;
+        private const int PanelWidth = 118;
+        private const int PanelHeight = 126;
+        private static readonly Rectangle GearButton = new Rectangle(330, 420, 150, 44);
+        private static readonly Rectangle BackButton = new Rectangle(684, 420, 150, 44);
+        private static Rectangle TabRectangle(int t) => new Rectangle(GridX + t * 168, 60, 160, 38);
+        private static Rectangle PanelRectangle(int i) => new Rectangle(GridX + i % Columns * (PanelWidth + 8), GridY + i / Columns * (PanelHeight + 6), PanelWidth, PanelHeight);
 
-        // Item panels are 3 across and 2 down next to the merchant
-        private const int PanelWidth = 150;
-        private const int PanelHeight = 130;
-        private const int GridX = 300;
-        private const int GridY = 90;
-
-        // Which item is picked (the last one is the Back button)
-        private int _selected;
+        // Where the selection is, row -1 is the tabs, 0 and 1 are items, 2 is the bottom buttons
+        private int _tab;
+        private int _row;
+        private int _col;
         private MouseState _lastMouse;
 
         // Short message after trying to buy ("Not enough gems")
@@ -58,14 +66,21 @@ namespace Runner_Game.Screens
             TransitionOffTime = TimeSpan.FromSeconds(0.3);
         }
 
+        // Items on the current tab (only the ones in the shop right now)
+        private Item[] TabItems => Shop.Items.Where(i => i.Slot == (Slot)_tab && i.InShop).ToArray();
+        private int ItemRows => (TabItems.Length + Columns - 1) / Columns;
+        private int SelectedIndex => _row >= 0 && _row < ItemRows ? _row * Columns + _col : -1;
+
         public override void Activate()
         {
             var content = ScreenManager.Game.Content;
             _background = content.Load<Texture2D>("Images/Shop/shop_bg");
             _merchant = content.Load<Texture2D>("Images/Shop/merchant");
             _shopMusic = content.Load<Song>("Audio/Music/plunder");
+            _buySound = content.Load<SoundEffect>("Audio/Sfx/buy");
             _gem = content.Load<Texture2D>("Images/Shop/gem");
-            _icons = Array.ConvertAll(IconNames, name => content.Load<Texture2D>(name));
+            _button = content.Load<Texture2D>("Images/Menu/button");
+            _icons = Array.ConvertAll(Shop.Items, item => content.Load<Texture2D>(item.Icon));
             _pixel = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
             _glow = content.Load<Texture2D>("Images/Particles/particle");
@@ -73,7 +88,7 @@ namespace Runner_Game.Screens
             _sparks.Initialize();
 
             // So the click that opened the shop doesn't also buy something
-            _lastMouse = Mouse.GetState();
+            _lastMouse = VirtualMouse.GetState();
         }
 
         public override void Update(GameTime gameTime, bool otherScreenHasFocus, bool coveredByOtherScreen)
@@ -106,32 +121,52 @@ namespace Runner_Game.Screens
             _sparks.Update(gameTime);
         }
 
+        private void SwitchTab(int tab)
+        {
+            _tab = (tab + TabNames.Length) % TabNames.Length;
+            if (_row >= 0 && _row < 2) { _row = 0; _col = 0; }
+        }
+
+        // Keeps the column inside the row so you never land on an empty spot
+        private int RowLength(int row) => row == 2 ? 2 : row < 0 ? TabNames.Length : Math.Min(Columns, TabItems.Length - row * Columns);
+
         public override void HandleInput(GameTime gameTime, InputState input)
         {
-            int count = Shop.Items.Length;
+            // Q / E or the bumpers flip tabs from anywhere
+            if (input.IsNewKeyPress(Keys.Q) || input.IsNewButtonPress(Buttons.LeftShoulder)) SwitchTab(_tab - 1);
+            if (input.IsNewKeyPress(Keys.E) || input.IsNewButtonPress(Buttons.RightShoulder)) SwitchTab(_tab + 1);
 
-            // Arrows move around the grid (Down from the bottom row goes to Back)
-            if (input.IsNewKeyPress(Keys.Right) || input.IsNewKeyPress(Keys.D)) _selected = Math.Min(_selected + 1, count);
-            if (input.IsNewKeyPress(Keys.Left) || input.IsNewKeyPress(Keys.A)) _selected = Math.Max(_selected - 1, 0);
-            if (input.IsNewKeyPress(Keys.Down) || input.IsNewKeyPress(Keys.S)) _selected = Math.Min(_selected + 3, count);
-            if (input.IsNewKeyPress(Keys.Up) || input.IsNewKeyPress(Keys.W)) _selected = _selected == count ? count - 1 : Math.Max(_selected - 3, 0);
-            bool choose = input.IsNewKeyPress(Keys.Enter) || input.IsNewKeyPress(Keys.Space);
-
-            // Hovering picks an item, clicking chooses it
-            var mouse = Mouse.GetState();
-            for (int i = 0; i <= count; i++)
+            // Arrows move around tabs -> items -> buttons
+            if (input.IsNewKeyPress(Keys.Left))
             {
-                if (ItemRectangle(i).Contains(mouse.Position))
-                {
-                    if (mouse.Position != _lastMouse.Position) _selected = i;
-                    if (mouse.LeftButton == ButtonState.Pressed && _lastMouse.LeftButton == ButtonState.Released)
-                    {
-                        _selected = i;
-                        choose = true;
-                    }
-                }
+                if (_row < 0) SwitchTab(_tab - 1); else _col = Math.Max(0, _col - 1);
             }
+            if (input.IsNewKeyPress(Keys.Right))
+            {
+                if (_row < 0) SwitchTab(_tab + 1); else _col = Math.Min(RowLength(_row) - 1, _col + 1);
+            }
+            if (input.IsNewKeyPress(Keys.Down)) _row = _row < 0 ? 0 : _row < ItemRows - 1 ? _row + 1 : 2;
+            else if (input.IsNewKeyPress(Keys.Up)) _row = _row == 2 ? ItemRows - 1 : _row - 1 < 0 ? -1 : _row - 1;
+            if (_row < 0) _col = _tab;
+            _col = Math.Clamp(_col, 0, RowLength(_row) - 1);
+            bool choose = input.IsNewKeyPress(Keys.Enter);
+
+            // Hovering picks, clicking chooses
+            var mouse = VirtualMouse.GetState();
+            bool click = mouse.LeftButton == ButtonState.Pressed && _lastMouse.LeftButton == ButtonState.Released;
+            bool moved = mouse.Position != _lastMouse.Position;
             _lastMouse = mouse;
+            void Hover(Rectangle rect, int row, int col)
+            {
+                if (!rect.Contains(mouse.Position)) return;
+                if (moved || click) { _row = row; _col = col; }
+                if (click) choose = true;
+            }
+            for (int t = 0; t < TabNames.Length; t++)
+                if (TabRectangle(t).Contains(mouse.Position) && click) { SwitchTab(t); _row = -1; _col = t; }
+            for (int i = 0; i < TabItems.Length; i++) Hover(PanelRectangle(i), i / Columns, i % Columns);
+            Hover(GearButton, 2, 0);
+            Hover(BackButton, 2, 1);
 
             // Esc always leaves
             if (input.IsNewKeyPress(Keys.Escape) || input.IsNewButtonPress(Buttons.Back))
@@ -139,42 +174,45 @@ namespace Runner_Game.Screens
                 ExitScreen();
                 return;
             }
-
             if (!choose) return;
 
-            if (_selected == count)
+            if (_row < 0) { _row = 0; _col = 0; }
+            else if (_row == 2)
             {
-                ExitScreen();
+                if (_col == 0) ScreenManager.AddScreen(new GearScreen());
+                else ExitScreen();
             }
-            else
-            {
-                var upgrade = (Upgrade)_selected;
-                if (Shop.Level(upgrade) == Shop.MaxLevel(upgrade)) _message = "That's maxed out";
-                else _message = Shop.Buy(upgrade) ? $"{Shop.Items[_selected].Name} is now level {Shop.Level(upgrade)}!" : "Not enough gems";
-                _messageTime = 2f;
-            }
+            else if (SelectedIndex >= 0 && SelectedIndex < TabItems.Length) TryBuy(TabItems[SelectedIndex]);
         }
 
-        // Shows what you have now and what the next level gives (just Now once its maxed)
-        private static string LevelInfo(Upgrade upgrade)
+        // Buys it if you dont have it, otherwise upgrades it
+        private void TryBuy(Item item)
         {
-            var item = Shop.Items[(int)upgrade];
-            int level = Shop.Level(upgrade);
-            string now = $"Now: {item.Show(item.Values[level])}";
-            return level == Shop.MaxLevel(upgrade) ? now + "  (max)" : $"{now}\nNext: {item.Show(item.Values[level + 1])}";
+            bool owned = Shop.Owns(item.Id);
+            if (Shop.IsMaxed(item.Id)) _message = owned && item.MaxLevel == 1 ? $"You already have the {item.Name}" : "That's maxed out";
+            else if (Shop.Buy(item.Id))
+            {
+                _message = owned ? $"{item.Name} is now level {Shop.Level(item.Id)}!" : $"Got the {item.Name}!";
+                if (!owned && !Shop.IsEquipped(item.Id))
+                    ScreenManager.AddScreen(new PromptScreen($"Got the {item.Name}!", "Equip it now?", "Equip", "Not now", () => Shop.Equip(item.Id), () => { }));
+                _buySound.Play(0.8f, 0f, 0f);  // cha ching
+            }
+            else _message = "Not enough gems";
+            _messageTime = 2.5f;
+        }
+
+        // What the picked item does now and what the next level gives
+        private static string ItemInfo(Item item)
+        {
+            if (!Shop.Owns(item.Id)) return item.Show(item.Values[0]);
+            string now = item.Show(Shop.Value(item.Id));
+            return Shop.IsMaxed(item.Id) ? now : $"{now}\nNext: {item.Show(item.Values[Shop.Level(item.Id)])}";
         }
 
         public override void Unload()
         {
             // The title starts its own music again (fading in) once the shop is gone
             MediaPlayer.Stop();
-        }
-
-        // Clickable area of an item panel (index 6 is the Back button)
-        private Rectangle ItemRectangle(int i)
-        {
-            if (i == Shop.Items.Length) return new Rectangle(660, 410, 120, 48);
-            return new Rectangle(GridX + i % 3 * (PanelWidth + 10), GridY + i / 3 * (PanelHeight + 10), PanelWidth, PanelHeight);
         }
 
         public override void Draw(GameTime gameTime)
@@ -185,7 +223,7 @@ namespace Runner_Game.Screens
 
             // PointClamp keeps the pixel art sharp
             spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-            spriteBatch.Draw(_background, Vector2.Zero, fade);
+            spriteBatch.Draw(_background, new Rectangle(0, 0, Game1.VirtualWidth, Game1.VirtualHeight), fade);  // art is 800 wide, stretched a lil to fill 16:9
 
             // Breathing, he stretches up and down slowly from his feet (Kinda creepy, I love it)
             float breath = 1f + 0.015f * MathF.Sin(_time * 2.2f);
@@ -222,58 +260,74 @@ namespace Runner_Game.Screens
             // Gems in the top left
             spriteBatch.Draw(_gem, new Vector2(20, 18), fade);
             spriteBatch.DrawString(font, Shop.Gems.ToString(), new Vector2(60, 14), Color.Cyan * TransitionAlpha, 0f, Vector2.Zero, 0.8f, SpriteEffects.None, 0f);
+            DrawText("Shop", new Vector2(GridX + 250 - ScreenManager.TitleFont.MeasureString("Shop").X * 0.4f, 4), Color.Yellow, 0.8f, ScreenManager.TitleFont);
 
-            DrawText("Shop", new Vector2(400 - font.MeasureString("Shop").X * 0.6f, 14), Color.Yellow, 1.2f);
+            // Tabs, the open one is bright
+            for (int t = 0; t < TabNames.Length; t++)
+                DrawButton(TabRectangle(t), TabNames[t], t == _tab, _row < 0 && t == _tab ? Color.Yellow : t == _tab ? Color.White : Color.Gray);
 
-            // Item panels with the icon, name, green level bars and the next price (or Max)
-            for (int i = 0; i < Shop.Items.Length; i++)
+            // Item panels with the icon, name, level bars and the price (or Owned / Max)
+            var items = TabItems;
+            for (int i = 0; i < items.Length; i++)
             {
-                var rect = ItemRectangle(i);
-                var item = Shop.Items[i];
-                int level = Shop.Level((Upgrade)i);
-                int maxLevel = Shop.MaxLevel((Upgrade)i);
-                bool maxed = level == maxLevel;
-                bool selected = i == _selected;
+                var item = items[i];
+                var rect = PanelRectangle(i);
+                bool selected = i == SelectedIndex;
+                bool owned = Shop.Owns(item.Id);
+                MenuButton.Draw(spriteBatch, _button, rect, MenuButton.Tint(selected) * TransitionAlpha);
+                if (Shop.IsEquipped(item.Id))
+                    spriteBatch.Draw(_pixel, new Rectangle(rect.X + 6, rect.Y + 6, 10, 10), Color.LimeGreen * TransitionAlpha);  // green dot = equipped
 
-                spriteBatch.Draw(_pixel, rect, (selected ? new Color(30, 90, 60) : new Color(10, 20, 30)) * 0.85f * TransitionAlpha);
-                spriteBatch.Draw(_icons[i], new Vector2(rect.Center.X - 24, rect.Y + 8), (maxed ? Color.Gray : Color.White) * TransitionAlpha);
-                DrawText(item.Name, new Vector2(rect.Center.X - ScreenManager.TitleFont.MeasureString(item.Name).X * 0.2f, rect.Y + 58), selected ? Color.Yellow : Color.White, 0.4f, ScreenManager.TitleFont);
+                spriteBatch.Draw(_icons[(int)item.Id], new Vector2(rect.Center.X - 24, rect.Y + 8), (owned ? Color.White : Color.Gray) * TransitionAlpha);
+                var titleFont = ScreenManager.TitleFont;
+                float nameScale = MathF.Min(0.34f, (rect.Width - 14) / titleFont.MeasureString(item.Name).X);
+                DrawText(item.Name, new Vector2(rect.Center.X - titleFont.MeasureString(item.Name).X * nameScale / 2, rect.Y + 60), selected ? Color.Yellow : Color.White, nameScale, titleFont);
 
-                // One bar per level, lit green once bought
-                for (int b = 0; b < maxLevel; b++)
+                // One bar per level, lit green once bought (single level items skip these)
+                if (owned && item.MaxLevel > 1)
                 {
-                    var bar = new Rectangle(rect.Center.X - (maxLevel * 36 - 6) / 2 + b * 36, rect.Y + 84, 30, 7);
-                    spriteBatch.Draw(_pixel, bar, (b < level ? Color.LimeGreen : Color.Black * 0.6f) * TransitionAlpha);
+                    int barWidth = (rect.Width - 24 - (item.MaxLevel - 1) * 4) / item.MaxLevel;
+                    for (int b = 0; b < item.MaxLevel; b++)
+                        spriteBatch.Draw(_pixel, new Rectangle(rect.X + 12 + b * (barWidth + 4), rect.Y + 86, barWidth, 6), (b < Shop.Level(item.Id) ? Color.LimeGreen : Color.Black * 0.6f) * TransitionAlpha);
                 }
 
-                if (maxed)
+                if (Shop.IsMaxed(item.Id))
                 {
-                    DrawText("Max", new Vector2(rect.Center.X - font.MeasureString("Max").X * 0.2f, rect.Y + 100), Color.LimeGreen, 0.4f);
+                    string done = item.MaxLevel == 1 ? "Owned" : "Max";
+                    DrawText(done, new Vector2(rect.Center.X - font.MeasureString(done).X * 0.2f, rect.Y + 98), Color.LimeGreen, 0.4f);
                 }
                 else
                 {
-                    int cost = Shop.Price((Upgrade)i);
+                    int cost = Shop.Price(item.Id);
                     string price = cost.ToString();
                     float priceWidth = font.MeasureString(price).X * 0.4f;
-                    spriteBatch.Draw(_gem, new Rectangle((int)(rect.Center.X - (priceWidth + 22) / 2), rect.Y + 102, 18, 18), fade);
-                    DrawText(price, new Vector2(rect.Center.X - (priceWidth + 22) / 2 + 22, rect.Y + 100), Shop.Gems >= cost ? Color.Cyan : Color.IndianRed, 0.4f);
+                    spriteBatch.Draw(_gem, new Rectangle((int)(rect.Center.X - (priceWidth + 22) / 2), rect.Y + 100, 18, 18), fade);
+                    DrawText(price, new Vector2(rect.Center.X - (priceWidth + 22) / 2 + 22, rect.Y + 98), Shop.Gems >= cost ? Color.Cyan : Color.IndianRed, 0.4f);
                 }
             }
 
-            // What the picked item does (or the last buy message)
-            string info = _messageTime > 0 ? _message : _selected < Shop.Items.Length ? LevelInfo((Upgrade)_selected) : "Back to the title";
-            int boxWidth = 3 * PanelWidth + 20;
-            float infoScale = MathF.Min(0.4f, (boxWidth - 20) / font.MeasureString(info).X);
-            spriteBatch.Draw(_pixel, new Rectangle(GridX, 368, boxWidth, 40), Color.Black * 0.7f * TransitionAlpha);
-            DrawText(info, new Vector2(GridX + 10, 370), Color.White, infoScale);
+            // What the picked thing does (or the last buy message)
+            string info = _messageTime > 0 ? _message
+                : SelectedIndex >= 0 && SelectedIndex < items.Length ? ItemInfo(items[SelectedIndex])
+                : _row == 2 ? (_col == 0 ? "Equip your gear" : "Back to the title")
+                : "Q / E (or LB / RB) to switch tabs";
+            int infoY = GridY + ItemRows * (PanelHeight + 6) + 2;
+            float infoScale = MathF.Min(0.4f, 480 / font.MeasureString(info).X);
+            spriteBatch.Draw(_pixel, new Rectangle(GridX, infoY, 500, 44), Color.Black * 0.7f * TransitionAlpha);
+            DrawText(info, new Vector2(GridX + 10, infoY + 3), Color.White, infoScale);
 
-            // Back button
-            var back = ItemRectangle(Shop.Items.Length);
-            bool backSelected = _selected == Shop.Items.Length;
-            spriteBatch.Draw(_pixel, back, (backSelected ? new Color(30, 90, 60) : new Color(10, 20, 30)) * 0.85f * TransitionAlpha);
-            DrawText("Back", new Vector2(back.Center.X - font.MeasureString("Back").X * 0.3f, back.Y + 8), backSelected ? Color.Yellow : Color.White, 0.6f);
+            DrawButton(GearButton, "Gear", _row == 2 && _col == 0);
+            DrawButton(BackButton, "Back", _row == 2 && _col == 1);
 
             spriteBatch.End();
+        }
+
+        // Stone button with centered text
+        private void DrawButton(Rectangle rect, string label, bool selected, Color? textColor = null)
+        {
+            MenuButton.Draw(ScreenManager.SpriteBatch, _button, rect, MenuButton.Tint(selected) * TransitionAlpha);
+            var size = ScreenManager.MenuFont.MeasureString(label) * 0.5f;
+            DrawText(label, new Vector2(rect.Center.X - size.X / 2, rect.Center.Y - size.Y / 2), textColor ?? (selected ? Color.Yellow : Color.White), 0.5f);
         }
 
         // Where an eye ends up on screen after the breathing stretch

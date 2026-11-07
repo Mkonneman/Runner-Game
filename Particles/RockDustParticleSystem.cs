@@ -9,6 +9,7 @@ namespace Runner_Game
     {
         // Color for the particles currently being added
         private Color _tint = Color.White;
+        public float Size = 1f;  // smaller for the hover boot sparks
 
         public RockDustParticleSystem(Game game) : base(game, 400) { }
 
@@ -39,7 +40,7 @@ namespace Runner_Game
 
             p.Initialize(where + offset, velocity, Vector2.Zero, _tint,
                 lifetime: RandomHelper.NextFloat(0.5f, 0.8f),
-                scale: RandomHelper.NextFloat(2.5f, 4.0f),
+                scale: RandomHelper.NextFloat(2.5f, 4.0f) * Size,
                 rotation: RandomHelper.NextFloat(0, MathHelper.TwoPi),
                 angularVelocity: RandomHelper.NextFloat(-2f, 2f));
         }
@@ -52,7 +53,7 @@ namespace Runner_Game
             float normalizedLifetime = particle.TimeSinceStart / particle.Lifetime;
             particle.Color = particle.BaseColor * ((1 - normalizedLifetime) * 0.45f);
 
-            particle.Scale += 0.8f * dt; // Puffs will grow as they fade
+            particle.Scale += 0.8f * Size * dt; // Puffs will grow as they fade
         }
     }
 }

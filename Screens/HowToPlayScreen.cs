@@ -12,28 +12,29 @@ namespace Runner_Game.Screens
     public class HowToPlayScreen : GameScreen
     {
         private Texture2D _pixel;
+        private Texture2D _button;
         private MouseState _lastMouse;
 
         // Pictures pulled straight from the game art
-        private Texture2D _player, _wallStone, _wallCrystal, _rock, _spike, _merchant, _gem, _dashIcon, _smashIcon;
+        private Texture2D _player, _wallStone, _rock, _spike, _merchant, _gem, _dashIcon, _smashIcon;
         private static readonly Rectangle SpikeSource = new Rectangle(27, 0, 74, 80); // same crop as the game uses
 
         // Title and lines for each slide (the picture is picked in DrawPicture)
         private static readonly (string Title, string[] Lines)[] Slides =
         {
-            ("Movement", new[] { "A / D or Left / Right to move", "Space, W or Up to jump", "Shift to dash", "S or Down to smash", "", "The icons in the top right", "show when they're ready" }),
-            ("Walls", new[] { "Walls kill you in one hit!", "", "A red ! shows up right", "before one comes in", "", "Smash it with S before", "you run into it" }),
+            ("Movement", new[] { "Left / Right to move", "Up to jump", "Shift for your ability", "Down to smash", "", "Rebind keys in Settings,", "controllers work too!" }),
+            ("Walls", new[] { "Walls kill you in one hit!", "", "A red ! shows up right", "before one comes in", "", "Smash it before", "you run into it" }),
             ("Rocks", new[] { "Rocks fall from the ceiling", "and take 25% of your health", "", "Get under one and smash", "it for extra points" }),
             ("Spikes", new[] { "Crystal spikes slide in", "along the floor", "", "They take 50% of your health", "so jump over them!" }),
-            ("The Shop", new[] { "Every 10 points = 1 gem", "", "Spend gems on upgrades", "at the Shop on the title", "", "Faster dashes, more health,", "healing and more!" }),
+            ("The Shop", new[] { "Every 10 points = 1 gem", "", "Buy and upgrade gear", "at the Shop", "", "Then pick a weapon, ability", "and armor in Gear!" }),
         };
         private int _slide;
         private float _time;  // drives the little animations on the pictures
 
-        private static readonly Rectangle PrevButton = new Rectangle(150, 400, 60, 44);
-        private static readonly Rectangle NextButton = new Rectangle(590, 400, 60, 44);
-        private static readonly Rectangle BackButton = new Rectangle(340, 400, 120, 44);
-        private static readonly Rectangle PictureBox = new Rectangle(150, 95, 230, 285);
+        private static readonly Rectangle PrevButton = new Rectangle(177, 400, 60, 44);
+        private static readonly Rectangle NextButton = new Rectangle(617, 400, 60, 44);
+        private static readonly Rectangle BackButton = new Rectangle(367, 400, 120, 44);
+        private static readonly Rectangle PictureBox = new Rectangle(177, 95, 230, 285);
 
         public HowToPlayScreen()
         {
@@ -47,11 +48,11 @@ namespace Runner_Game.Screens
         {
             _pixel = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
+            _button = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/button");  // same stone button as the title
 
             var content = ScreenManager.Game.Content;
             _player = content.Load<Texture2D>("Images/Gameplay/player_run");
             _wallStone = content.Load<Texture2D>("Images/Gameplay/wall_stone");
-            _wallCrystal = content.Load<Texture2D>("Images/Gameplay/wall_crystal");
             _rock = content.Load<Texture2D>("Images/Gameplay/spike_rock");
             _spike = content.Load<Texture2D>("Images/Gameplay/stalactite");
             _merchant = content.Load<Texture2D>("Images/Shop/merchant");
@@ -60,7 +61,7 @@ namespace Runner_Game.Screens
             _smashIcon = content.Load<Texture2D>("Images/HUD/SmashCooldownButton");
 
             // So the click that opened it doesn't also press something
-            _lastMouse = Mouse.GetState();
+            _lastMouse = VirtualMouse.GetState();
         }
 
         public override void Update(GameTime gameTime, bool otherScreenHasFocus, bool coveredByOtherScreen)
@@ -71,7 +72,7 @@ namespace Runner_Game.Screens
 
         public override void HandleInput(GameTime gameTime, InputState input)
         {
-            var mouse = Mouse.GetState();
+            var mouse = VirtualMouse.GetState();
             bool click = mouse.LeftButton == ButtonState.Pressed && _lastMouse.LeftButton == ButtonState.Released;
             _lastMouse = mouse;
 
@@ -94,7 +95,7 @@ namespace Runner_Game.Screens
             var spriteBatch = ScreenManager.SpriteBatch;
             var font = ScreenManager.MenuFont;
             var viewport = ScreenManager.GraphicsDevice.Viewport;
-            var mouse = Mouse.GetState().Position;
+            var mouse = VirtualMouse.GetState().Position;
             var (title, lines) = Slides[_slide];
 
             // PointClamp so the pixel art pictures stay sharp
@@ -102,18 +103,18 @@ namespace Runner_Game.Screens
 
             // Darken the title and put a panel behind everything
             spriteBatch.Draw(_pixel, new Rectangle(0, 0, viewport.Width, viewport.Height), Color.Black * 0.5f * TransitionAlpha);
-            spriteBatch.Draw(_pixel, new Rectangle(120, 20, 560, 440), new Color(10, 20, 30) * 0.92f * TransitionAlpha);
-            DrawText(title, new Vector2(400 - ScreenManager.TitleFont.MeasureString(title).X * 0.45f, 30), Color.Yellow, 0.9f, ScreenManager.TitleFont);
+            spriteBatch.Draw(_pixel, new Rectangle(147, 20, 560, 440), new Color(10, 20, 30) * 0.92f * TransitionAlpha);
+            DrawText(title, new Vector2(427 - ScreenManager.TitleFont.MeasureString(title).X * 0.45f, 30), Color.Yellow, 0.9f, ScreenManager.TitleFont);
 
             // Picture on the left, text on the right
-            spriteBatch.Draw(_pixel, PictureBox, new Color(25, 40, 60) * TransitionAlpha);
+            MenuButton.Draw(spriteBatch, _button, PictureBox, MenuButton.Tint(false) * TransitionAlpha);  // stone frame like the buttons
             DrawPicture(spriteBatch);
             for (int i = 0; i < lines.Length; i++)
-                DrawText(lines[i], new Vector2(400, 120 + i * 32), Color.White, 0.42f);
+                DrawText(lines[i], new Vector2(427, 120 + i * 32), Color.White, 0.42f);
 
             // Dots so you know which slide you're on
             for (int i = 0; i < Slides.Length; i++)
-                spriteBatch.Draw(_pixel, new Rectangle(400 - Slides.Length * 10 + i * 20, 385, 10, 10), (i == _slide ? Color.Yellow : Color.Gray) * TransitionAlpha);
+                spriteBatch.Draw(_pixel, new Rectangle(427 - Slides.Length * 10 + i * 20, 385, 10, 10), (i == _slide ? Color.Yellow : Color.Gray) * TransitionAlpha);
 
             // < Back > buttons
             DrawButton(PrevButton, "<", _slide > 0, mouse);
@@ -138,9 +139,8 @@ namespace Runner_Game.Screens
                     spriteBatch.Draw(_smashIcon, new Rectangle((int)center.X + 12, (int)center.Y + 40, 48, 48), fade);
                     break;
                 case 1:
-                    // Both wall looks with a blinking red ! like the warning in game
-                    spriteBatch.Draw(_wallStone, new Rectangle((int)center.X - 70, PictureBox.Y + 20, 54, 245), new Rectangle(0, 0, 72, 330), fade);
-                    spriteBatch.Draw(_wallCrystal, new Rectangle((int)center.X + 16, PictureBox.Y + 20, 54, 245), new Rectangle(0, 0, 72, 330), fade);
+                    // The stone wall with a blinking red ! like the warning in game
+                    spriteBatch.Draw(_wallStone, new Rectangle((int)center.X - 27, PictureBox.Y + 20, 54, 245), new Rectangle(0, 0, 72, 330), fade);
                     if ((int)(_time * 4) % 2 == 0) DrawText("!", new Vector2(center.X - 8, PictureBox.Y + 4), Color.Red, 1.2f);
                     break;
                 case 2:
@@ -165,7 +165,7 @@ namespace Runner_Game.Screens
         {
             var font = ScreenManager.MenuFont;
             bool hover = enabled && button.Contains(mouse);
-            ScreenManager.SpriteBatch.Draw(_pixel, button, (hover ? new Color(30, 90, 60) : new Color(20, 40, 55)) * (enabled ? 1f : 0.4f) * TransitionAlpha);
+            MenuButton.Draw(ScreenManager.SpriteBatch, _button, button, MenuButton.Tint(hover) * (enabled ? 1f : 0.4f) * TransitionAlpha);
             Vector2 size = font.MeasureString(label) * 0.6f;
             DrawText(label, new Vector2(button.Center.X - size.X / 2, button.Center.Y - size.Y / 2), (hover ? Color.Yellow : Color.White) * (enabled ? 1f : 0.4f), 0.6f);
         }
