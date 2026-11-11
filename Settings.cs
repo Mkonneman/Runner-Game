@@ -36,6 +36,9 @@ namespace Runner_Game
         // Testing toggle, shop shows a pile of gems and buying is free
         public static bool InfiniteMoney { get; set; }
 
+        // Hover Boots level 3: true = hold jump to hover, false = double jump (swapped in Gear)
+        public static bool AirHover { get; set; }
+
         // Testing: where Play drops you (not saved, always back to the blue cave on launch)
         public static readonly string[] StartNames = { "Blue", "Orange", "Green", "Door", "Hall", "Boss" };
         public static int TestStart;

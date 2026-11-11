@@ -369,6 +369,7 @@ namespace Runner_Game.Screens
             _runner.CanDash = _ability == ItemId.Dash;
             _runner.DashCooldown = Shop.Value(ItemId.Dash);
             if (_armor == ItemId.SpringBoots) _runner.JumpBoost = Shop.Value(ItemId.SpringBoots);
+            Shop.ApplyBoots(_runner);
             _abilityCooldown = _ability switch { ItemId.PatchUp => 20f, ItemId.BubbleShield => 15f, ItemId.TimeSlow => 20f, ItemId.RocketLauncher => MathF.Abs(Shop.Value(ItemId.RocketLauncher)), _ => 1f };
             _weaponIcon = _smashIcon;  // HUD always shows the blue smash button, whatever weapon is on
             _abilityIcon = _ability == null ? null : _ability == ItemId.Dash ? _dashIcon : _content.Load<Texture2D>("Images/HUD/ability_" + System.IO.Path.GetFileName(Shop.Get(_ability.Value).Icon));  // item art in the same blue frame as the smash button
@@ -466,6 +467,7 @@ namespace Runner_Game.Screens
             UpdateLantern(realDt);
 
             _runner.Update(gameTime);
+            Iris.Center = new Vector2(_runner.Bounds.X + _runner.Bounds.Width / 2, _runner.Bounds.Y + _runner.Bounds.Height / 2);  // circle opens on him
             _skinFx.Update(realDt, _runner, FloorY + 22, _smashedLastFrame);
             _smashedLastFrame = false;
             if (_endPhase < 3) UpdateAbility(realDt);
@@ -686,7 +688,7 @@ namespace Runner_Game.Screens
         }
 
         // Holes only show up once they come in from off screen after GapStartTime, before that they're plain floor (so one never pops open under him)
-        private int FloorTile(int column, int id) => id >= 9 && (column * Tilemap.TileSize < _startScroll + GapStartTime * SpikeSpeed + 800 || column * Tilemap.TileSize >= _noGapFrom) ? 1 : id;  // counts from where this run started so a checkpoint start isnt over a hole
+        private int FloorTile(int column, int id) => id >= 9 && (column * Tilemap.TileSize < _startScroll + GapStartTime * SpikeSpeed + 800 || column * Tilemap.TileSize >= _noGapFrom) ? 1 : id;  // counts from where this run started so a test start isnt over a hole
 
         // True if any floor tile under this spot is a gap or a gap's crumbly edge (spikes slide with the floor so it stays true)
         private bool OverGap(float centerX, float width)
@@ -890,6 +892,11 @@ namespace Runner_Game.Screens
                 _score += Points(WallPoints);
             }
 
+            // The pickaxe chips spikes out of the floor too
+            if (_weapon == ItemId.Pickaxe)
+                for (int i = _spikes.Count - 1; i >= 0; i--)
+                    if (!_spikes[i].IsWall && SpikeBounds(_spikes[i]).Left - runnerRight < SmashReach() && SpikeBounds(_spikes[i]).Right > _runner.Bounds.Left) BreakObstacle(i);
+
             // Gems in reach, floor ones like walls, hanging ones by the tip
             for (int g = _gems.Count - 1; g >= 0; g--)
             {
@@ -918,7 +925,7 @@ namespace Runner_Game.Screens
         // A rock can be smashed when its hit circle comes within reach of his head
         private bool InSmashRange(Bolders bolder) => Vector2.Distance(bolder.Bounds.Center, SmashPoint()) < bolder.Bounds.Radius + SmashReach();
 
-        private float SmashReach() => _weapon switch { ItemId.Pickaxe => 68f, ItemId.QuakeHammer => 120f, _ => WallReach };
+        private float SmashReach() => _weapon switch { ItemId.Pickaxe => Shop.PickReach, ItemId.QuakeHammer => 120f, _ => WallReach };
 
         // Hit box of a gemstone (the thin middle so it feels fair)
         private BoundingRectangle GemBounds((float X, bool Top, Color Tint, float Tip) gem) => gem.Top

@@ -13,7 +13,7 @@ namespace Runner_Game
     {
         public const float ZoneLength = 90f;  // seconds in each zone before it starts fading
 
-        // Furthest cave reached, runs start at the beginning of it (saved)
+        // Leftover from checkpoints (removed), still saved so old saves load, runs always start in the blue cave now
         public static int Checkpoint;
         public const float FadeTime = 6f;     // how long the fade into the next color takes
 

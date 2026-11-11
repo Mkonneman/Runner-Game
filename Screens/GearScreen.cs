@@ -29,6 +29,10 @@ namespace Runner_Game.Screens
         private static readonly Rectangle BagArea = new Rectangle(450, 80, BagColumns * Cell + 16, BagRows * Cell + 16);
         private static readonly Rectangle InfoBox = new Rectangle(137, 318, 580, 82);
         private static readonly Rectangle BackButton = new Rectangle(367, 410, 120, 44);
+        // Hover Boots level 3 mode swap, under the armor slot's name
+        private static readonly Rectangle BootsToggle = new Rectangle(343, 228, 110, 22);
+        private static bool ShowToggle => Shop.Level(ItemId.HoverBoots) >= 3;
+        private void FlipBoots() { Settings.AirHover = !Settings.AirHover; SaveSystem.Save(); Say(Settings.AirHover ? "Hover Boots: hold jump to hover" : "Hover Boots: double jump"); }
         private static Rectangle SlotRectangle(int slot) => new Rectangle(275, 74 + slot * 60, 60, 60);  // 4 stacked so they clear the info box
         private static Rectangle BagRectangle(int i) => new Rectangle(BagArea.X + 8 + i % BagColumns * Cell, BagArea.Y + 8 + i / BagColumns * Cell, Cell - 6, Cell - 6);
 
@@ -53,7 +57,7 @@ namespace Runner_Game.Screens
         }
 
         // Everything you own that isn't on you right now (hidden items stay out)
-        private static Item[] Bag() => Shop.Items.Where(i => Shop.Owns(i.Id) && i.InShop && !Shop.IsEquipped(i.Id)).ToArray();
+        private static Item[] Bag() => Shop.Items.Where(i => Shop.Owns(i.Id) && i.InShop && !Shop.IsEquipped(i.Id) && i.Id != ItemId.SkinExplorer).ToArray();  // default skin is just an empty skin slot
 
         public override void Activate()
         {
@@ -106,6 +110,7 @@ namespace Runner_Game.Screens
         private void HandleKeys(InputState input)
         {
             var bag = Bag();
+            if (ShowToggle && input.IsNewKeyPress(Keys.H)) FlipBoots();
             if (input.IsNewKeyPress(Keys.Up))
             {
                 if (_area == 0) _index = Math.Max(0, _index - 1);
@@ -169,6 +174,7 @@ namespace Runner_Game.Screens
             if (pressed)
             {
                 if (BackButton.Contains(position)) { ExitScreen(); return; }
+                if (ShowToggle && BootsToggle.Contains(position)) { FlipBoots(); return; }
                 if (_hover is ItemId grab)
                 {
                     _dragging = grab;
@@ -231,6 +237,12 @@ namespace Runner_Game.Screens
             }
 
             // The bag
+            if (ShowToggle)
+            {
+                MenuButton.Draw(spriteBatch, _button, BootsToggle, MenuButton.Tint(BootsToggle.Contains(VirtualMouse.GetState().Position)) * a);
+                DrawText(Settings.AirHover ? "Boots: Hover (H)" : "Boots: Dbl Jump (H)", new Vector2(BootsToggle.X + 6, BootsToggle.Y + 4), Color.White, 0.26f);
+            }
+
             DrawText("Bag", new Vector2(BagArea.X, BagArea.Y - 24), Color.White, 0.4f);
             MenuButton.Draw(spriteBatch, _button, BagArea, Color.White * 0.5f * a);
             for (int i = 0; i < bag.Length; i++)

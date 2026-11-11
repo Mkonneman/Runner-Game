@@ -47,10 +47,10 @@ namespace Runner_Game
         public static readonly Item[] Items = new Item[]
         {
             // Weapons (what Smash does)
-            new() { Id = ItemId.Hammer, Name = "Hammer", Slot = Slot.Weapon, Icon = "Images/Items/hammer", Price = 0, UpgradePrice = 30,
+            new() { Id = ItemId.Hammer, Name = "Hammer", Slot = Slot.Weapon, Icon = "Images/Items/hammer", Price = 0, UpgradePrice = 15,
                     Values = new[] { 3f, 2.5f, 2.1f, 1.7f }, Show = v => $"Smash walls and rocks, {v:0.#}s cooldown" },
             new() { Id = ItemId.Pickaxe, Name = "Pickaxe", Slot = Slot.Weapon, Icon = "Images/Items/pickaxe", Price = 50, UpgradePrice = 40,
-                    Values = new[] { 1.4f, 1.15f, 0.9f }, Show = v => $"Short reach but quick, {v:0.##}s cooldown" },
+                    Values = new[] { 1.4f, 1.15f, 0.9f }, Show = v => $"Quick, breaks spikes too, reach grows each level, {v:0.##}s cooldown" },
             new() { Id = ItemId.QuakeHammer, Name = "Quake Hammer", Slot = Slot.Weapon, Icon = "Images/Items/quake_hammer", Price = 200, UpgradePrice = 100,
                     Values = new[] { 6f, 5f, 3f }, Show = v => $"Huge swing, shockwave on the ground, {v:0.#}s" },
 
@@ -78,8 +78,8 @@ namespace Runner_Game
                     Values = new[] { 1.15f, 1.3f, 1.45f }, Show = v => $"Hold jump to go {(v - 1) * 100:0}% higher, tap for a hop" },
             new() { Id = ItemId.CrystalPlate, Name = "Crystal Plate", Slot = Slot.Armor, Icon = "Images/Items/crystal_plate", Price = 150, UpgradePrice = 70,
                     Values = new[] { 0.3f, 0.15f, 0f }, Show = v => v == 0 ? "Spikes do nothing to you" : $"Spikes only take {v * 100:0}% health" },
-            new() { Id = ItemId.HoverBoots, Name = "Hover Boots", Slot = Slot.Armor, Icon = "Images/Items/hover_boots", Price = 60, UpgradePrice = 0,
-                    Values = new[] { 1f }, Show = v => "Float right over holes in the floor" },
+            new() { Id = ItemId.HoverBoots, Name = "Hover Boots", Slot = Slot.Armor, Icon = "Images/Items/hover_boots", Price = 60, UpgradePrice = 60,
+                    Values = new[] { 1f, 2f, 3f }, Show = v => v switch { 1 => "Float right over holes in the floor", 2 => "Float over holes, jump again in the air", _ => "Floats over holes, double jump or hold jump to hover (swap in Gear)" } },
             new() { Id = ItemId.LuckyCharm, Name = "Lucky Charm", Slot = Slot.Armor, Icon = "Images/Items/lucky_charm", Price = 50, UpgradePrice = 70,
                     Values = new[] { 1.25f, 1.5f, 2f }, Show = v => $"+{(v - 1) * 100:0}% gems from runs" },
             new() { Id = ItemId.PhoenixHeart, Name = "Phoenix Heart", Slot = Slot.Armor, Icon = "Images/Items/phoenix_heart", Price = 250, UpgradePrice = 250,
@@ -126,6 +126,18 @@ namespace Runner_Game
         public static float Value(ItemId id) => Get(id).Values[Math.Max(0, Level(id) - 1)];
 
         // Gems to buy it, or to upgrade it once you own it
+        // Pickaxe reach, longer every level
+        public static float PickReach => 68f + 22f * Math.Max(0, Level(ItemId.Pickaxe) - 1);
+
+        // Sets up the Hover Boots air move on the runner (level 2 = double jump, level 3 = pick double jump or hover in Gear)
+        public static void ApplyBoots(Runner runner)
+        {
+            if (!IsEquipped(ItemId.HoverBoots) || Level(ItemId.HoverBoots) < 2) return;
+            bool hover = Level(ItemId.HoverBoots) >= 3 && Settings.AirHover;
+            runner.DoubleJump = !hover;
+            runner.AirHover = hover;
+        }
+
         public static int Price(ItemId id) => Owns(id) ? Get(id).UpgradePrice * Level(id) : Get(id).Price;
 
         // 1 gem for every 10 points scored in a run (more with the Lucky Charm on)

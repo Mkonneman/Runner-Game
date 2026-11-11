@@ -19,9 +19,10 @@ namespace Runner_Game
         public float SmashRingOpacity { get; set; } = 0.25f;
         public float SkinFxAmount { get; set; } = 1f;
         public bool InfiniteMoney { get; set; }
+        public bool AirHover { get; set; }
         public string[] KeyBindings { get; set; }
         public int WallDeaths { get; set; }       // for the "Wall: N, You: 0" pun
-        public int Checkpoint { get; set; }
+        public int Checkpoint { get; set; }       // checkpoints were removed, kept so old saves still load
         public string[] Achievements { get; set; }
         public Dictionary<string, int> Stats { get; set; }       // furthest cave reached (0 blue, 1 orange, 2 green)
     }
@@ -48,6 +49,7 @@ namespace Runner_Game
                 SmashRingOpacity = Settings.SmashRingOpacity,
                 SkinFxAmount = Settings.SkinFxAmount,
                 InfiniteMoney = Settings.InfiniteMoney,
+                AirHover = Settings.AirHover,
                 KeyBindings = Controls.Save(),
                 Checkpoint = CaveZones.Checkpoint,
                 WallDeaths = Screens.GameOverScreen.WallDeaths,
@@ -81,6 +83,7 @@ namespace Runner_Game
                 Settings.SmashRingOpacity = Math.Clamp(data.SmashRingOpacity, 0, 1);
                 Settings.SkinFxAmount = Math.Clamp(data.SkinFxAmount, 0, 1);
                 Settings.InfiniteMoney = data.InfiniteMoney;
+                Settings.AirHover = data.AirHover;
                 Controls.Load(data.KeyBindings);
                 CaveZones.Checkpoint = Math.Clamp(data.Checkpoint, 0, CaveZones.Count - 1);
                 Screens.GameOverScreen.WallDeaths = Math.Max(0, data.WallDeaths);

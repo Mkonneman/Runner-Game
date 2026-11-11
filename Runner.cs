@@ -73,6 +73,12 @@ namespace Runner_Game
         public float JumpBoost = 1f;
         private bool jumpCut;                    // let go early so the jump got cut short already
 
+        // Hover Boots upgrades: one extra jump in the air, or hold jump on the way down to float
+        public bool DoubleJump, AirHover;
+        private bool usedDouble;
+        private float hoverLeft = HoverTime;
+        private const float HoverTime = 1.2f;    // seconds of float per jump
+
         public bool IsOnGround => !isJumping;
 
         // Where his feet land, the arena moves it down over a hiding pocket (walk off the edge = drop in)
@@ -198,6 +204,14 @@ namespace Runner_Game
             knock *= MathF.Pow(0.02f, dt);  // slides to a stop in about half a second
             moving = position.X != oldX;
 
+            // Double jump, checked first so the ground jump below doesn't count as the second one
+            if (DoubleJump && AutoWalkTo == null && isJumping && !isFalling && !usedDouble && Controls.IsPressed(PlayerAction.Jump))
+            {
+                usedDouble = true;
+                jumpCut = true;
+                verticalSpeed = -JUMP_SPEED * 0.8f;
+            }
+
             // Jump (only from the ground)
             if (AutoWalkTo == null && !isJumping && !isFalling && Controls.IsPressed(PlayerAction.Jump))
             {
@@ -224,11 +238,14 @@ namespace Runner_Game
             if (isJumping)
             {
                 verticalSpeed += GRAVITY * dt;
+                if (AirHover && !isFalling && verticalSpeed > 60 && hoverLeft > 0 && Controls.IsDown(PlayerAction.Jump)) { verticalSpeed = 60; hoverLeft -= dt; }  // slow drift down
                 position.Y += verticalSpeed * dt;
                 if (position.Y >= GroundY && !isFalling)
                 {
                     position.Y = GroundY;
                     isJumping = false;
+                    usedDouble = false;
+                    hoverLeft = HoverTime;
                 }
             }
 

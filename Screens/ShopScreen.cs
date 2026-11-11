@@ -33,7 +33,7 @@ namespace Runner_Game.Screens
         private SparkParticleSystem _sparks;
         private float _time;
 
-        // The merchant stands close to the screen (feet cut off), breathing, with glowing eyes that blink now and then
+        // The shopkeeper stands close to the screen (legs cut off) and breathes. Tried her as a 3D model, reverted back to the 2D art
         private static readonly Vector2 MerchantFeet = new(60, 590);           // bottom left of the shopkeeper, below the screen so she's cut off under the knees
         private static readonly Vector2[] Eyes = { };  // the new shopkeeper has normal eyes, no glow (the old merchant had 192,128 and 230,128)
         private float _blinkTimer = 3f;

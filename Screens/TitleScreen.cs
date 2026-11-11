@@ -39,6 +39,9 @@ namespace Runner_Game.Screens
 
         // Bools for running into the cave and starting the game
         private bool _enteringCave;
+        private float _caveSlide = CaveHidden;  // how far right of its spot the cave is, starts off screen
+        private const float CaveHidden = 400f;
+        private float UiAlpha => TransitionAlpha * _caveSlide / CaveHidden;  // menu fades out as the cave slides in
         private bool _gameStarted;
 
         // Timer for the blinking "Press Enter" text
@@ -102,6 +105,7 @@ namespace Runner_Game.Screens
         {
             _runner.Position = new Vector2(RunnerStartX, GroundY + 36); // feet on the ground (the frame has a 1px gap under them)
             _enteringCave = false;
+            _caveSlide = CaveHidden;
             _gameStarted = false;
         }
 
@@ -127,13 +131,13 @@ namespace Runner_Game.Screens
 
         private void DrawLogoBit(SpriteBatch spriteBatch, (Vector2 Pos, Vector2 Vel, float Age, float Life, bool Star, Color Color) b)
         {
-            float t = b.Age / b.Life, fade = (1 - t) * TransitionAlpha;
+            float t = b.Age / b.Life, fade = (1 - t) * UiAlpha;
             int x = (int)b.Pos.X, y = (int)b.Pos.Y;
             if (b.Star)
             {
                 int arm = (int)(4 * MathF.Sin(t * MathF.PI)) + 1;
-                spriteBatch.Draw(_pixel, new Rectangle(x - arm, y, arm * 2 + 1, 1), b.Color * MathF.Sin(t * MathF.PI) * TransitionAlpha);
-                spriteBatch.Draw(_pixel, new Rectangle(x, y - arm, 1, arm * 2 + 1), b.Color * MathF.Sin(t * MathF.PI) * TransitionAlpha);
+                spriteBatch.Draw(_pixel, new Rectangle(x - arm, y, arm * 2 + 1, 1), b.Color * MathF.Sin(t * MathF.PI) * UiAlpha);
+                spriteBatch.Draw(_pixel, new Rectangle(x, y - arm, 1, arm * 2 + 1), b.Color * MathF.Sin(t * MathF.PI) * UiAlpha);
             }
             else spriteBatch.Draw(_pixel, new Rectangle(x - 1, y - 1, t < 0.5f ? 3 : 2, t < 0.5f ? 3 : 2), b.Color * fade);
         }
@@ -163,6 +167,11 @@ namespace Runner_Game.Screens
             {
                 _scrollTime += dt;
             }
+            else if (_caveSlide > 0)  // keeps running while the cave scrolls in from the right
+            {
+                _scrollTime += dt;
+                _caveSlide = MathF.Max(0, _caveSlide - LayerInfo[^1].Speed * dt);
+            }
             else if (_runner.Position.X < CaveMouthX)
             {
                 _runner.Position = new Vector2(MathF.Min(_runner.Position.X + RunSpeed * dt, CaveMouthX), _runner.Position.Y);
@@ -171,6 +180,7 @@ namespace Runner_Game.Screens
             {
                 _gameStarted = true;
                 ScreenManager.AddScreen(NewRun());
+                Iris.Start();
             }
 
             // Keep the music going while the title is showing
@@ -188,10 +198,13 @@ namespace Runner_Game.Screens
 
         public override void HandleInput(GameTime gameTime, InputState input)
         {
-            // Left / Right (or the d-pad / stick) picks one of the 3 buttons, Up or Down drops back to Play
-            if (input.IsNewKeyPress(Keys.Right)) _selectedButton = Math.Min(_selectedButton + 1, 4);
-            if (input.IsNewKeyPress(Keys.Left)) _selectedButton = Math.Max(_selectedButton - 1, 0);
-            if (input.IsNewKeyPress(Keys.Down) || input.IsNewKeyPress(Keys.Up)) _selectedButton = -1;
+            // Arrows / d-pad move around the buttons like they sit on screen: Play, then Shop Gear Trophies, then How to Play and Settings in the corners
+            int[] top = { 0, 1, 4 }, bottom = { 2, 3 };
+            int col = Array.IndexOf(top, _selectedButton), corner = Array.IndexOf(bottom, _selectedButton);
+            if (input.IsNewKeyPress(Keys.Down)) _selectedButton = _selectedButton < 0 ? 1 : col >= 0 ? bottom[col == 2 ? 1 : 0] : _selectedButton;
+            else if (input.IsNewKeyPress(Keys.Up)) _selectedButton = col >= 0 ? -1 : corner >= 0 ? top[corner == 0 ? 0 : 2] : -1;
+            else if (input.IsNewKeyPress(Keys.Right)) _selectedButton = col >= 0 ? top[Math.Min(col + 1, 2)] : corner >= 0 ? 3 : 1;
+            else if (input.IsNewKeyPress(Keys.Left)) _selectedButton = col >= 0 ? top[Math.Max(col - 1, 0)] : corner >= 0 ? 2 : 1;
 
             // Enter / A presses the picked button, or starts the run if none is picked. Space and Start always start
             bool confirm = input.IsNewKeyPress(Keys.Enter);
@@ -237,7 +250,7 @@ namespace Runner_Game.Screens
                 // Cave goes in front of the trees but behind the ground (hides its bottom)
                 if (i == _layers.Length - 1)
                 {
-                    spriteBatch.Draw(_cave, new Vector2(viewport.Width - _cave.Width + 40, GroundY + 30 - _cave.Height), fade); // +40 hides its flat right edge off screen
+                    spriteBatch.Draw(_cave, new Vector2(viewport.Width - _cave.Width + 40 + _caveSlide, GroundY + 30 - _cave.Height), fade); // +40 hides its flat right edge off screen
                 }
 
                 // Tile the layer across the screen, shifted by how far it has scrolled
@@ -273,9 +286,9 @@ namespace Runner_Game.Screens
 
             // Rock Rush logo at the top
             var logoPos = new Vector2((viewport.Width - _logo.Width) / 2, 34 + MathF.Sin(_logoTime * 2f) * 3);  // gentle bob
-            spriteBatch.Draw(_glow, logoPos + new Vector2(_logo.Width / 2f, _logo.Height / 2f), null, new Color(255, 140, 30) * (0.25f + 0.08f * MathF.Sin(_logoTime * 3)) * TransitionAlpha, 0f, new Vector2(8), new Vector2(_logo.Width / 9f, _logo.Height / 11f), SpriteEffects.None, 0f);  // warm glow behind
+            spriteBatch.Draw(_glow, logoPos + new Vector2(_logo.Width / 2f, _logo.Height / 2f), null, new Color(255, 140, 30) * (0.25f + 0.08f * MathF.Sin(_logoTime * 3)) * UiAlpha, 0f, new Vector2(8), new Vector2(_logo.Width / 9f, _logo.Height / 11f), SpriteEffects.None, 0f);  // warm glow behind
             foreach (var b in _logoBits) if (!b.Star) DrawLogoBit(spriteBatch, b);
-            spriteBatch.Draw(_logo, logoPos, Color.White * TransitionAlpha);
+            spriteBatch.Draw(_logo, logoPos, Color.White * UiAlpha);
             foreach (var b in _logoBits) if (b.Star) DrawLogoBit(spriteBatch, b);
 
             // Blinks on and off about twice a second (hidden once he heads in)
@@ -298,7 +311,7 @@ namespace Runner_Game.Screens
         private Vector2 EyePosition(Vector2 eye)
         {
             var viewport = ScreenManager.GraphicsDevice.Viewport;
-            return new Vector2(viewport.Width - _cave.Width + 40, GroundY + 30 - _cave.Height) + eye;
+            return new Vector2(viewport.Width - _cave.Width + 40 + _caveSlide, GroundY + 30 - _cave.Height) + eye;
         }
 
         // A button with its label centered in it
@@ -306,7 +319,7 @@ namespace Runner_Game.Screens
         {
             var font = ScreenManager.TitleFont;
             bool hover = button.Contains(VirtualMouse.GetState().Position) || index == _selectedButton;
-            ScreenManager.SpriteBatch.Draw(_button, MenuButton.Squash(button, hover), (hover ? Color.White : new Color(170, 180, 200)) * TransitionAlpha);
+            ScreenManager.SpriteBatch.Draw(_button, MenuButton.Squash(button, hover), (hover ? Color.White : new Color(170, 180, 200)) * UiAlpha);
 
             // Label shrinks to fit long names like How to Play
             float scale = MathF.Min(0.65f, (button.Width - 28) / font.MeasureString(label).X);
@@ -319,18 +332,18 @@ namespace Runner_Game.Screens
                 scale = MathF.Min(scale, (button.Width - 70) / font.MeasureString(label).X);
                 size = font.MeasureString(label) * scale;
                 var spot = MenuButton.Inside(new Rectangle(button.X + 14, button.Center.Y - 14, 32, 31));
-                Achievements.DrawTrophy(ScreenManager.SpriteBatch, _pixel, spot.Location.ToVector2(), TransitionAlpha, true, 0.9f * spot.Width / 32f);
+                Achievements.DrawTrophy(ScreenManager.SpriteBatch, _pixel, spot.Location.ToVector2(), UiAlpha, true, 0.9f * spot.Width / 32f);
                 hasIcon = true;
             }
             else if (hasIcon)
             {
                 scale = MathF.Min(scale, (button.Width - 70) / font.MeasureString(label).X);
                 size = font.MeasureString(label) * scale;
-                ScreenManager.SpriteBatch.Draw(icon, MenuButton.Inside(new Rectangle(button.X + 12, button.Center.Y - icon.Height / 2, icon.Width, icon.Height)), Color.White * TransitionAlpha);
+                ScreenManager.SpriteBatch.Draw(icon, MenuButton.Inside(new Rectangle(button.X + 12, button.Center.Y - icon.Height / 2, icon.Width, icon.Height)), Color.White * UiAlpha);
             }
             var position = new Vector2(button.Center.X - size.X / 2 + (hasIcon ? 20 : 0), button.Center.Y - size.Y / 2);
-            ScreenManager.SpriteBatch.DrawString(font, label, MenuButton.TextPos(position) + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
-            ScreenManager.SpriteBatch.DrawString(font, label, MenuButton.TextPos(position), (hover ? Color.Yellow : Color.White) * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, label, MenuButton.TextPos(position) + new Vector2(2), Color.Black * UiAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, label, MenuButton.TextPos(position), (hover ? Color.Yellow : Color.White) * UiAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
         }
 
         // Draws text centered left to right on the screen (with a shadow so it stands out)
@@ -341,8 +354,8 @@ namespace Runner_Game.Screens
 
             Vector2 size = font.MeasureString(text) * scale;
             Vector2 position = new Vector2((viewport.Width - size.X) / 2, y);
-            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position) + new Vector2(3), Color.Black * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
-            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position), color * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position) + new Vector2(3), Color.Black * UiAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position), color * UiAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
         }
     }
 }

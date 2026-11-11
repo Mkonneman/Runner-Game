@@ -11,7 +11,7 @@ namespace Runner_Game.Screens
 {
     /// <summary>
     /// Past the door, a narrow grey rock passage (about a third of a cave) with boulders rolling in from the right at 3 heights
-    /// The floor dips down and humps up smoothly, crouch in a dip to hide. Make it to the arena to clear it (boss goes there later)
+    /// The hallway floor is flat, crouch under the high boulders. At the end it opens into the arena with rolling hills and the Stone Golem
     /// Same cave art greyed out with the same parallax, the top and bottom of the screen are cut off so the passage is narrow
     /// </summary>
     public class ArenaScreen : GameScreen
@@ -19,7 +19,7 @@ namespace Runner_Game.Screens
         private ContentManager _content;
         private Texture2D _wall, _pillars, _arena, _rock, _boulder, _skull, _pixel;
 
-        // His weapon from the run, tap the smash button to swing (holding it is still the crouch)
+        // His weapon from the run, tap the smash button to swing (holding it crouches, hallway only)
         private Texture2D _hammer, _pickaxe, _smashIcon;
         private ItemId? _weapon;
         private float _smashCooldown, _smashLeft, _swipeLeft, _swipeReach;
@@ -142,6 +142,7 @@ namespace Runner_Game.Screens
             _runner.CanDash = Shop.Equipped(Slot.Ability) == ItemId.Dash;
             _runner.DashCooldown = Shop.Value(ItemId.Dash);
             if (Shop.Equipped(Slot.Armor) == ItemId.SpringBoots) _runner.JumpBoost = Shop.Value(ItemId.SpringBoots);
+            Shop.ApplyBoots(_runner);
 
             // Arena hills, a little different every run
             _hillHeight = RandomHelper.NextFloat(40, 64);
@@ -258,7 +259,7 @@ namespace Runner_Game.Screens
                 _smashed = true;
                 MenuButton.Trigger(new Rectangle(ScreenManager.GraphicsDevice.Viewport.Width - 64, 12, 48, 48));  // squash the HUD icon
                 _swipeLeft = _weapon == ItemId.QuakeHammer ? 0.35f : SwipeTime;
-                _swipeReach = _weapon switch { ItemId.Pickaxe => 68f, ItemId.QuakeHammer => 120f, _ => 80f };
+                _swipeReach = _weapon switch { ItemId.Pickaxe => Shop.PickReach, ItemId.QuakeHammer => 120f, _ => 80f };
                 _rollSound.Play(0.8f, RandomHelper.NextFloat(-0.15f, 0.15f), 0f);
                 var point = SmashPoint();
                 for (int b = _boulders.Count - 1; b >= 0; b--)
@@ -290,6 +291,7 @@ namespace Runner_Game.Screens
                 else if (hit == 0) _notReadySound.Play(0.7f, -0.4f, 0f);
             }
             _runner.Update(gameTime);
+            Iris.Center = new Vector2(_runner.Bounds.X + _runner.Bounds.Width / 2, _runner.Bounds.Y + _runner.Bounds.Height / 2);  // circle opens on him
             if (Fighting) UpdateAbility(dt);
             float bossDt = _slowLeft > 0 ? dt * 0.5f : dt;  // time slow drags the golem down
             if (InArena) _golem.Update(bossDt, _runner, kind => HurtPlayer(new Color(80, 200, 255), kind), FistBroken, () => _rollSound.Play(0.8f, -0.6f, 0f), () => _laserSound.Play(0.7f, -0.2f, 0f));
@@ -521,7 +523,7 @@ namespace Runner_Game.Screens
                 float target = _smashLeft > 0 ? 0.15f : 1f;
                 _ringAlpha = target < _ringAlpha ? target : MathHelper.Min(target, _ringAlpha + (float)gameTime.ElapsedGameTime.TotalSeconds * 1.5f);
                 var head = SmashPoint();
-                float reach = _weapon switch { ItemId.Pickaxe => 68f, ItemId.QuakeHammer => 120f, _ => 80f };
+                float reach = _weapon switch { ItemId.Pickaxe => Shop.PickReach, ItemId.QuakeHammer => 120f, _ => 80f };
                 for (float a = 0; a < MathHelper.TwoPi; a += 0.12f)
                 {
                     var p = head + new Vector2(MathF.Cos(a), MathF.Sin(a)) * reach;
