@@ -18,7 +18,7 @@ namespace Runner_Game.Screens
         private Texture2D _player;
         private Texture2D[] _icons;
 
-        private static readonly string[] SlotNames = { "Weapon", "Ability", "Armor" };
+        private static readonly string[] SlotNames = { "Weapon", "Ability", "Armor", "Skin" };
         private static readonly Color PlayerTint = new Color(185, 205, 255);  // same blue as in the cave
 
         // Layout, player on the left, slots beside him, the bag on the right, info along the bottom
@@ -29,7 +29,7 @@ namespace Runner_Game.Screens
         private static readonly Rectangle BagArea = new Rectangle(450, 80, BagColumns * Cell + 16, BagRows * Cell + 16);
         private static readonly Rectangle InfoBox = new Rectangle(137, 318, 580, 82);
         private static readonly Rectangle BackButton = new Rectangle(367, 410, 120, 44);
-        private static Rectangle SlotRectangle(int slot) => new Rectangle(275, 92 + slot * 74, 60, 60);
+        private static Rectangle SlotRectangle(int slot) => new Rectangle(275, 74 + slot * 60, 60, 60);  // 4 stacked so they clear the info box
         private static Rectangle BagRectangle(int i) => new Rectangle(BagArea.X + 8 + i % BagColumns * Cell, BagArea.Y + 8 + i / BagColumns * Cell, Cell - 6, Cell - 6);
 
         // Keyboard focus, area 0 = slots, 1 = bag, 2 = back button
@@ -110,11 +110,11 @@ namespace Runner_Game.Screens
             {
                 if (_area == 0) _index = Math.Max(0, _index - 1);
                 else if (_area == 1 && _index >= BagColumns) _index -= BagColumns;
-                else if (_area == 2) { _area = 0; _index = 2; }
+                else if (_area == 2) { _area = 0; _index = SlotNames.Length - 1; }
             }
             if (input.IsNewKeyPress(Keys.Down))
             {
-                if (_area == 0) { if (_index < 2) _index++; else _area = 2; }
+                if (_area == 0) { if (_index < SlotNames.Length - 1) _index++; else _area = 2; }
                 else if (_area == 1) { if (_index + BagColumns < Math.Max(1, bag.Length)) _index += BagColumns; else _area = 2; }
             }
             if (input.IsNewKeyPress(Keys.Right))
@@ -124,7 +124,7 @@ namespace Runner_Game.Screens
             }
             if (input.IsNewKeyPress(Keys.Left))
             {
-                if (_area == 1) { if (_index % BagColumns == 0) { _area = 0; _index = Math.Min(2, _index / BagColumns); } else _index--; }
+                if (_area == 1) { if (_index % BagColumns == 0) { _area = 0; _index = Math.Min(SlotNames.Length - 1, _index / BagColumns); } else _index--; }
             }
             if (_area == 1) _index = Math.Clamp(_index, 0, Math.Max(0, bag.Length - 1));
 
@@ -163,7 +163,7 @@ namespace Runner_Game.Screens
             var bag = Bag();
             _hover = null;
             int overSlot = -1;
-            for (int s = 0; s < 3; s++) if (SlotRectangle(s).Contains(position)) { overSlot = s; _hover = Shop.Equipped((Slot)s); }
+            for (int s = 0; s < SlotNames.Length; s++) if (SlotRectangle(s).Contains(position)) { overSlot = s; _hover = Shop.Equipped((Slot)s); }
             for (int i = 0; i < bag.Length; i++) if (BagRectangle(i).Contains(position)) _hover = bag[i].Id;
 
             if (pressed)
@@ -206,12 +206,13 @@ namespace Runner_Game.Screens
             DrawText("Gear", new Vector2(427 - ScreenManager.TitleFont.MeasureString("Gear").X * 0.3f, 22), Color.Yellow, 0.6f, ScreenManager.TitleFont);
 
             // The miner, big and running in place
+            _player = ScreenManager.Game.Content.Load<Texture2D>(Shop.SkinFolder(Shop.Equipped(Slot.Skin)) + "/run");  // shows the skin you have on (cached after the first load)
             int frame = (int)(gameTime.TotalGameTime.TotalSeconds * 8) % (_player.Width / 56);
             spriteBatch.Draw(_player, new Rectangle(97, 110, 56 * 4, 37 * 4), new Rectangle(frame * 56, 0, 56, 37), PlayerTint * a);
 
             // Slots with their names, glow green when what you're carrying fits
             var carrying = _dragging ?? _held;
-            for (int s = 0; s < 3; s++)
+            for (int s = 0; s < SlotNames.Length; s++)
             {
                 var rect = SlotRectangle(s);
                 bool focus = _area == 0 && _index == s;
@@ -219,7 +220,12 @@ namespace Runner_Game.Screens
                 MenuButton.Draw(spriteBatch, _button, rect, (fits ? new Color(140, 255, 160) : MenuButton.Tint(focus)) * a);
                 DrawText(SlotNames[s], new Vector2(rect.Right + 8, rect.Y + 18), focus ? Color.Yellow : Color.White, 0.35f);
                 if (Shop.Equipped((Slot)s) is ItemId on && on != _dragging)
-                    spriteBatch.Draw(_icons[(int)on], new Rectangle(rect.X + 6, rect.Y + 6, 48, 48), (on == _held ? Color.White * 0.4f : Color.White) * a);
+                {
+                    var iconArea = new Rectangle(rect.X + 6, rect.Y + 6, 48, 48);
+                    Rarity.DrawGlow(spriteBatch, MenuButton.Inside(iconArea), Rarity.Of(on), a);
+                    spriteBatch.Draw(_icons[(int)on], MenuButton.Inside(iconArea), (on == _held ? Color.White * 0.4f : Color.White) * a);
+                    Rarity.DrawSparks(spriteBatch, MenuButton.Inside(iconArea), Rarity.Of(on), a);
+                }
                 else if (Shop.Equipped((Slot)s) == null)
                     DrawText("empty", new Vector2(rect.X + 9, rect.Y + 22), Color.Gray, 0.3f);
             }
@@ -233,7 +239,11 @@ namespace Runner_Game.Screens
                 bool focus = _area == 1 && _index == i;
                 if (focus) spriteBatch.Draw(_pixel, new Rectangle(rect.X - 3, rect.Y - 3, rect.Width + 6, rect.Height + 6), Color.Yellow * a);
                 if (bag[i].Id != _dragging)
-                    spriteBatch.Draw(_icons[(int)bag[i].Id], rect, (bag[i].Id == _held ? Color.White * 0.4f : Color.White) * a);
+                {
+                    Rarity.DrawGlow(spriteBatch, MenuButton.Inside(rect), Rarity.Of(bag[i].Id), a);
+                    spriteBatch.Draw(_icons[(int)bag[i].Id], MenuButton.Inside(rect), (bag[i].Id == _held ? Color.White * 0.4f : Color.White) * a);
+                    Rarity.DrawSparks(spriteBatch, MenuButton.Inside(rect), Rarity.Of(bag[i].Id), a);
+                }
             }
             if (bag.Length == 0) DrawText("Buy more in the Shop!", new Vector2(BagArea.X + 20, BagArea.Center.Y - 8), Color.Gray, 0.35f);
 
@@ -244,7 +254,10 @@ namespace Runner_Game.Screens
             {
                 var item = Shop.Get(sel);
                 int level = Shop.Level(sel);
-                DrawText($"{item.Name}   Lv {level}/{item.MaxLevel}   ({SlotNames[(int)item.Slot]})", new Vector2(InfoBox.X + 14, InfoBox.Y + 8), Color.Yellow, 0.38f);
+                string title = $"{item.Name}   Lv {level}/{item.MaxLevel}   ({SlotNames[(int)item.Slot]})";
+                DrawText(title, new Vector2(InfoBox.X + 14, InfoBox.Y + 8), Rarity.Of(sel), 0.38f);
+                var titleSize = font.MeasureString(item.Name) * 0.38f;
+                Rarity.DrawSparks(spriteBatch, new Rectangle(InfoBox.X + 14, InfoBox.Y + 8, (int)titleSize.X, (int)titleSize.Y), Rarity.Of(sel), a, 4);
                 DrawText(item.Show(Shop.Value(sel)), new Vector2(InfoBox.X + 14, InfoBox.Y + 32), Color.White, 0.33f);
                 string next = Shop.IsMaxed(sel) ? "Fully upgraded" : $"Next upgrade: {item.Show(item.Values[level])}  ({Shop.Price(sel)} gems in the Shop)";
                 DrawText(next, new Vector2(InfoBox.X + 14, InfoBox.Y + 54), Color.LightGray, MathF.Min(0.3f, (InfoBox.Width - 28) / font.MeasureString(next).X));
@@ -257,7 +270,12 @@ namespace Runner_Game.Screens
 
             // The dragged icon follows the mouse
             var mouse = VirtualMouse.GetState().Position;
-            if (_dragging is ItemId drag) spriteBatch.Draw(_icons[(int)drag], new Rectangle(mouse.X - 24, mouse.Y - 24, 48, 48), Color.White * a);
+            if (_dragging is ItemId drag)
+            {
+                var dragArea = new Rectangle(mouse.X - 24, mouse.Y - 24, 48, 48);
+                Rarity.DrawGlow(spriteBatch, dragArea, Rarity.Of(drag), a);
+                spriteBatch.Draw(_icons[(int)drag], dragArea, Color.White * a);
+            }
             // Quick overview when hovering (not while dragging)
             else if (_hover is ItemId hover)
             {
@@ -267,7 +285,7 @@ namespace Runner_Game.Screens
                 var lineSize = font.MeasureString(line) * scale;
                 var tip = new Rectangle(Math.Min(mouse.X + 14, Game1.VirtualWidth - (int)lineSize.X - 24), mouse.Y + 14, (int)lineSize.X + 16, 44);
                 spriteBatch.Draw(_pixel, tip, Color.Black * 0.85f * a);
-                DrawText(item.Name, new Vector2(tip.X + 8, tip.Y + 3), Color.Yellow, 0.33f);
+                DrawText(item.Name, new Vector2(tip.X + 8, tip.Y + 3), Rarity.Of(hover), 0.33f);
                 DrawText(line, new Vector2(tip.X + 8, tip.Y + 23), Color.White, scale);
             }
             spriteBatch.End();
@@ -276,8 +294,8 @@ namespace Runner_Game.Screens
         private void DrawText(string text, Vector2 position, Color color, float scale, SpriteFont font = null)
         {
             font ??= ScreenManager.MenuFont;
-            ScreenManager.SpriteBatch.DrawString(font, text, position + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-            ScreenManager.SpriteBatch.DrawString(font, text, position, color * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position) + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position), color * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
         }
     }
 }

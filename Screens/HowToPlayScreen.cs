@@ -16,17 +16,22 @@ namespace Runner_Game.Screens
         private MouseState _lastMouse;
 
         // Pictures pulled straight from the game art
-        private Texture2D _player, _wallStone, _rock, _spike, _merchant, _gem, _dashIcon, _smashIcon;
+        private Texture2D _player, _wallStone, _rock, _spike, _merchant, _gem, _dashIcon, _smashIcon, _door, _golem, _boulder;
         private static readonly Rectangle SpikeSource = new Rectangle(27, 0, 74, 80); // same crop as the game uses
 
         // Title and lines for each slide (the picture is picked in DrawPicture)
         private static readonly (string Title, string[] Lines)[] Slides =
         {
-            ("Movement", new[] { "Left / Right to move", "Up to jump", "Shift for your ability", "Down to smash", "", "Rebind keys in Settings,", "controllers work too!" }),
+            ("Movement", new[] { "Left / Right to move", "Up to jump", "Shift for your ability", "Down to smash, or hold it", "to crouch in the arena", "", "Rebind keys in Settings" }),
             ("Walls", new[] { "Walls kill you in one hit!", "", "A red ! shows up right", "before one comes in", "", "Smash it before", "you run into it" }),
             ("Rocks", new[] { "Rocks fall from the ceiling", "and take 25% of your health", "", "Get under one and smash", "it for extra points" }),
             ("Spikes", new[] { "Crystal spikes slide in", "along the floor", "", "They take 50% of your health", "so jump over them!" }),
-            ("The Shop", new[] { "Every 10 points = 1 gem", "", "Buy and upgrade gear", "at the Shop", "", "Then pick a weapon, ability", "and armor in Gear!" }),
+            ("The Caves", new[] { "Run through three caves:", "blue, orange, then green", "", "Each one gets harder", "", "Grab diamonds for gems,", "reach the door at the end!" }),
+            ("The Hallway", new[] { "Past the door is a narrow", "stone hallway", "", "Boulders roll at you,", "crouch (Down) in the dips", "to let them pass over", "No weapons in here!" }),
+            ("Stone Golem", new[] { "The boss waits in the arena", "Smash him to drain his health", "", "Jump or smash his fists", "Run from his punches", "Dodge his head laser,", "it sweeps from either side" }),
+            ("Golem Shields", new[] { "Sometimes he curls up or", "his crystals glow blue", "", "He can't be hurt then!", "", "Watch for blinking marks,", "colored rocks drop there" }),
+            ("The Shop", new[] { "Every 10 points = 1 gem", "", "Buy and upgrade gear,", "rarity goes grey, blue,", "purple, yellow then red", "", "Hover an item to see its path" }),
+            ("Gear & Skins", new[] { "Pick a weapon, ability,", "armor and skin in Gear", "", "Skins come from the", "Skins tab in the Shop,", "each has its own particles", "(turn them down in Settings)" }),
         };
         private int _slide;
         private float _time;  // drives the little animations on the pictures
@@ -51,7 +56,10 @@ namespace Runner_Game.Screens
             _button = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/button");  // same stone button as the title
 
             var content = ScreenManager.Game.Content;
-            _player = content.Load<Texture2D>("Images/Gameplay/player_run");
+            _player = content.Load<Texture2D>(Shop.SkinFolder(Shop.Equipped(Slot.Skin)) + "/run");  // whatever skin you're wearing
+            _door = content.Load<Texture2D>("Images/Gameplay/door");
+            _golem = content.Load<Texture2D>("Images/Boss/golem");
+            _boulder = content.Load<Texture2D>("Images/Arena/boulder");
             _wallStone = content.Load<Texture2D>("Images/Gameplay/wall_stone");
             _rock = content.Load<Texture2D>("Images/Gameplay/spike_rock");
             _spike = content.Load<Texture2D>("Images/Gameplay/stalactite");
@@ -110,7 +118,7 @@ namespace Runner_Game.Screens
             MenuButton.Draw(spriteBatch, _button, PictureBox, MenuButton.Tint(false) * TransitionAlpha);  // stone frame like the buttons
             DrawPicture(spriteBatch);
             for (int i = 0; i < lines.Length; i++)
-                DrawText(lines[i], new Vector2(427, 120 + i * 32), Color.White, 0.42f);
+                DrawText(lines[i], new Vector2(422, 120 + i * 32), Color.White, 0.4f);
 
             // Dots so you know which slide you're on
             for (int i = 0; i < Slides.Length; i++)
@@ -153,9 +161,34 @@ namespace Runner_Game.Screens
                     spriteBatch.Draw(_spike, new Vector2(center.X, PictureBox.Bottom - 40), SpikeSource, new Color(150, 200, 255) * TransitionAlpha, 0f, new Vector2(SpikeSource.Width / 2f, SpikeSource.Height), 2.5f, SpriteEffects.None, 0f);
                     break;
                 case 4:
+                    // The door at the end of the green cave
+                    spriteBatch.Draw(_door, new Rectangle(PictureBox.X + 25, PictureBox.Y + 30, 180, 225), new Rectangle(0, 0, _door.Width / 6, _door.Height), fade);
+                    break;
+                case 5:
+                    // A boulder rolling past
+                    float roll = (_time * 60) % 150 - 75;  // stays inside the frame
+                    spriteBatch.Draw(_boulder, center + new Vector2(-roll, 60), null, fade, -roll / 30f, new Vector2(_boulder.Width / 2f, _boulder.Height / 2f), 70f / _boulder.Width, SpriteEffects.None, 0f);
+                    break;
+                case 6:
+                case 7:
+                    // The golem, idling, or glowing while he can't be hurt
+                    int g = _slide == 6 ? (int)(_time / 0.15f) % 4 : 3 + (int)(_time / 0.12f) % 3;
+                    spriteBatch.Draw(_golem, new Vector2(center.X, PictureBox.Bottom - 30), new Rectangle(g * 100, (_slide == 6 ? 0 : 1) * 100, 100, 100), fade, 0f, new Vector2(50, 70), 2.6f, SpriteEffects.FlipHorizontally, 0f);
+                    break;
+                case 8:
                     // The merchant and a spinning-ish gem (Kinda just bobs, close enough)
                     spriteBatch.Draw(_merchant, new Rectangle(PictureBox.X + 15, PictureBox.Y + 10, 175, 265), fade);
                     spriteBatch.Draw(_gem, new Vector2(PictureBox.Right - 50, PictureBox.Y + 30 + MathF.Sin(_time * 3) * 6), null, fade, 0f, Vector2.Zero, 1.2f, SpriteEffects.None, 0f);
+                    break;
+                case 9:
+                    // Him in your skin, with a few sparkles circling
+                    int f9 = (int)(_time / 0.08f) % 8;
+                    spriteBatch.Draw(_player, center + new Vector2(0, 30), new Rectangle(f9 * 56, 0, 56, 37), fade, 0f, new Vector2(28, 37), 3.5f, SpriteEffects.None, 0f);
+                    for (int k = 0; k < 6; k++)
+                    {
+                        float a = _time * 2 + k;
+                        spriteBatch.Draw(_pixel, new Rectangle((int)(center.X + MathF.Cos(a) * 80), (int)(center.Y - 20 + MathF.Sin(a * 1.3f) * 60), 4, 4), new Color(255, 230, 120) * TransitionAlpha);
+                    }
                     break;
             }
         }
@@ -174,8 +207,8 @@ namespace Runner_Game.Screens
         private void DrawText(string text, Vector2 position, Color color, float scale, SpriteFont font = null)
         {
             font ??= ScreenManager.MenuFont;
-            ScreenManager.SpriteBatch.DrawString(font, text, position + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-            ScreenManager.SpriteBatch.DrawString(font, text, position, color * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position) + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position), color * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
         }
     }
 }

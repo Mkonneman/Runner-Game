@@ -46,13 +46,19 @@ namespace Runner_Game.Screens
 
         // Stone buttons in a row under the logo (click them, or Tab for the shop)
         private int _selectedButton = -1;  // which button the keys / controller picked (-1 means none, Enter just plays)
-        private static readonly Rectangle ShopButton = new Rectangle(129, 245, 140, 48);
-        private static readonly Rectangle GearButton = new Rectangle(281, 245, 140, 48);
-        private static readonly Rectangle HowToPlayButton = new Rectangle(433, 245, 140, 48);
-        private static readonly Rectangle SettingsButton = new Rectangle(585, 245, 140, 48);
+        private static readonly Rectangle ShopButton = new Rectangle(197, 275, 140, 48);
+        private static readonly Rectangle GearButton = new Rectangle(357, 275, 140, 48);
+        private static readonly Rectangle TrophyButton = new Rectangle(517, 275, 140, 48);
+        private static readonly Rectangle HowToPlayButton = new Rectangle(12, 424, 170, 44);  // tucked in the bottom left
+        private static readonly Rectangle SettingsButton = new Rectangle(702, 424, 140, 44);
         private Texture2D _button;
         private Texture2D _shopIcon;  // gem pouch with a hammer and gear (oooh)
+        private Texture2D _settingsIcon, _helpIcon;  // cog and ?
         private Texture2D _logo;
+
+        // Logo flair, embers drift up off it and little twinkles pop on the letters (pos, vel, age, life, twinkle?, color)
+        private readonly List<(Vector2 Pos, Vector2 Vel, float Age, float Life, bool Star, Color Color)> _logoBits = new();
+        private float _logoEmit, _logoTime;
 
         // Glowing red eyes in the cave, with sparks drifting up from them
         private static readonly Vector2[] CaveEyes = { new(95, 171), new(119, 171) };  // eye centers in menu_cave.png
@@ -77,6 +83,8 @@ namespace Runner_Game.Screens
             _pixel.SetData(new[] { Color.White });
             _button = content.Load<Texture2D>("Images/Menu/button");
             _shopIcon = content.Load<Texture2D>("Images/Menu/shop_icon");
+            _settingsIcon = content.Load<Texture2D>("Images/Menu/settings_icon");
+            _helpIcon = content.Load<Texture2D>("Images/Menu/help_icon");
             _logo = content.Load<Texture2D>("Images/Menu/logo");
             _glow = content.Load<Texture2D>("Images/Particles/particle");
             _eyeSparks = new SparkParticleSystem(ScreenManager.Game, new Color(255, 60, 40), 1.2f, 0.3f, new Vector2(0, -20), new Vector2(0, -20), wobble: 8, wobbleSpeed: 3);
@@ -97,11 +105,49 @@ namespace Runner_Game.Screens
             _gameStarted = false;
         }
 
+        private void UpdateLogoBits(float dt)
+        {
+            _logoTime += dt;
+            float left = (854 - _logo.Width) / 2f;
+            for (_logoEmit += dt * 30; _logoEmit >= 1; _logoEmit--)
+            {
+                if (RandomHelper.Next(0, 3) > 0)  // embers rising off the letters
+                    _logoBits.Add((new Vector2(left + RandomHelper.NextFloat(20, _logo.Width - 20), RandomHelper.NextFloat(70, 200)), new Vector2(RandomHelper.NextFloat(-15, 15), RandomHelper.NextFloat(-60, -25)),
+                        0, RandomHelper.NextFloat(0.8f, 1.6f), false, RandomHelper.Next(0, 1) == 0 ? new Color(255, 200, 60) : new Color(255, 110, 30)));
+                else  // twinkle on the logo
+                    _logoBits.Add((new Vector2(left + RandomHelper.NextFloat(20, _logo.Width - 20), RandomHelper.NextFloat(45, 190)), Vector2.Zero, 0, 0.5f, true, new Color(255, 245, 200)));
+            }
+            for (int i = _logoBits.Count - 1; i >= 0; i--)
+            {
+                var b = _logoBits[i];
+                b.Age += dt; b.Pos += b.Vel * dt; b.Pos.X += MathF.Sin(b.Age * 6 + b.Pos.Y) * 8 * dt;  // embers wiggle up
+                if (b.Age > b.Life) _logoBits.RemoveAt(i); else _logoBits[i] = b;
+            }
+        }
+
+        private void DrawLogoBit(SpriteBatch spriteBatch, (Vector2 Pos, Vector2 Vel, float Age, float Life, bool Star, Color Color) b)
+        {
+            float t = b.Age / b.Life, fade = (1 - t) * TransitionAlpha;
+            int x = (int)b.Pos.X, y = (int)b.Pos.Y;
+            if (b.Star)
+            {
+                int arm = (int)(4 * MathF.Sin(t * MathF.PI)) + 1;
+                spriteBatch.Draw(_pixel, new Rectangle(x - arm, y, arm * 2 + 1, 1), b.Color * MathF.Sin(t * MathF.PI) * TransitionAlpha);
+                spriteBatch.Draw(_pixel, new Rectangle(x, y - arm, 1, arm * 2 + 1), b.Color * MathF.Sin(t * MathF.PI) * TransitionAlpha);
+            }
+            else spriteBatch.Draw(_pixel, new Rectangle(x - 1, y - 1, t < 0.5f ? 3 : 2, t < 0.5f ? 3 : 2), b.Color * fade);
+        }
+
+        // New run from wherever the Start at setting says (hallway and boss skip the caves)
+        public static GameScreen NewRun() => Settings.TestStart >= 4 ? new ArenaScreen(0) : new GameplayScreen();
+
         public override void Update(GameTime gameTime, bool otherScreenHasFocus, bool coveredByOtherScreen)
         {
+            if (_runner.Skin != Shop.Equipped(Slot.Skin)) _runner.LoadContent(ScreenManager.Game.Content);  // picked a new skin in the shop or gear
             base.Update(gameTime, otherScreenHasFocus, coveredByOtherScreen);
 
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            UpdateLogoBits(dt);
             _blinkTimer += dt;
 
             // A few sparks a second from the cave's eyes, drifting up and wobbling until they fade
@@ -124,7 +170,7 @@ namespace Runner_Game.Screens
             else if (!_gameStarted)
             {
                 _gameStarted = true;
-                ScreenManager.AddScreen(new GameplayScreen());
+                ScreenManager.AddScreen(NewRun());
             }
 
             // Keep the music going while the title is showing
@@ -143,7 +189,7 @@ namespace Runner_Game.Screens
         public override void HandleInput(GameTime gameTime, InputState input)
         {
             // Left / Right (or the d-pad / stick) picks one of the 3 buttons, Up or Down drops back to Play
-            if (input.IsNewKeyPress(Keys.Right)) _selectedButton = Math.Min(_selectedButton + 1, 3);
+            if (input.IsNewKeyPress(Keys.Right)) _selectedButton = Math.Min(_selectedButton + 1, 4);
             if (input.IsNewKeyPress(Keys.Left)) _selectedButton = Math.Max(_selectedButton - 1, 0);
             if (input.IsNewKeyPress(Keys.Down) || input.IsNewKeyPress(Keys.Up)) _selectedButton = -1;
 
@@ -163,9 +209,10 @@ namespace Runner_Game.Screens
             if (click && GearButton.Contains(mouse.Position)) open = 1;
             if (click && HowToPlayButton.Contains(mouse.Position)) open = 2;
             if (click && SettingsButton.Contains(mouse.Position)) open = 3;
+            if (click && TrophyButton.Contains(mouse.Position)) open = 4;
             if (!_enteringCave && open >= 0)
             {
-                ScreenManager.AddScreen(open == 0 ? new ShopScreen() : open == 1 ? new GearScreen() : open == 2 ? new HowToPlayScreen() : new SettingsScreen());
+                ScreenManager.AddScreen(open == 0 ? new ShopScreen() : open == 1 ? new GearScreen() : open == 2 ? new HowToPlayScreen() : open == 3 ? new SettingsScreen() : new AchievementsScreen());
                 return;
             }
 
@@ -225,12 +272,16 @@ namespace Runner_Game.Screens
             spriteBatch.Begin();
 
             // Rock Rush logo at the top
-            spriteBatch.Draw(_logo, new Vector2((viewport.Width - _logo.Width) / 2, 4), Color.White * TransitionAlpha);
+            var logoPos = new Vector2((viewport.Width - _logo.Width) / 2, 34 + MathF.Sin(_logoTime * 2f) * 3);  // gentle bob
+            spriteBatch.Draw(_glow, logoPos + new Vector2(_logo.Width / 2f, _logo.Height / 2f), null, new Color(255, 140, 30) * (0.25f + 0.08f * MathF.Sin(_logoTime * 3)) * TransitionAlpha, 0f, new Vector2(8), new Vector2(_logo.Width / 9f, _logo.Height / 11f), SpriteEffects.None, 0f);  // warm glow behind
+            foreach (var b in _logoBits) if (!b.Star) DrawLogoBit(spriteBatch, b);
+            spriteBatch.Draw(_logo, logoPos, Color.White * TransitionAlpha);
+            foreach (var b in _logoBits) if (b.Star) DrawLogoBit(spriteBatch, b);
 
             // Blinks on and off about twice a second (hidden once he heads in)
             if (!_enteringCave && (int)(_blinkTimer * 2) % 2 == 0)
             {
-                DrawCentered(Controls.UsingPad ? "Press RT to Start" : "Press Enter to Start", 186, Color.Yellow, 0.75f, ScreenManager.BigFont);
+                DrawCentered(Controls.UsingPad ? "Press RT to Start" : "Press Enter to Start", 216, Color.Yellow, 0.75f, ScreenManager.BigFont);
             }
 
             // Buttons (lit up when the mouse is over them)
@@ -238,6 +289,7 @@ namespace Runner_Game.Screens
             DrawButton(GearButton, "Gear", 1);
             DrawButton(HowToPlayButton, "How to Play", 2);
             DrawButton(SettingsButton, "Settings", 3);
+            DrawButton(TrophyButton, "Trophies", 4);
 
             spriteBatch.End();
         }
@@ -254,17 +306,31 @@ namespace Runner_Game.Screens
         {
             var font = ScreenManager.TitleFont;
             bool hover = button.Contains(VirtualMouse.GetState().Position) || index == _selectedButton;
-            ScreenManager.SpriteBatch.Draw(_button, button, (hover ? Color.White : new Color(170, 180, 200)) * TransitionAlpha);
+            ScreenManager.SpriteBatch.Draw(_button, MenuButton.Squash(button, hover), (hover ? Color.White : new Color(170, 180, 200)) * TransitionAlpha);
 
             // Label shrinks to fit long names like How to Play
             float scale = MathF.Min(0.65f, (button.Width - 28) / font.MeasureString(label).X);
             Vector2 size = font.MeasureString(label) * scale;
-            // Shop gets the gem pouch on the left and its text nudged over to make room
-            bool hasIcon = label == "Shop";
-            if (hasIcon) ScreenManager.SpriteBatch.Draw(_shopIcon, new Vector2(button.X + 14, button.Center.Y - _shopIcon.Height / 2), Color.White * TransitionAlpha);
+            // Shop, Settings and How to Play get an icon on the left and their text nudged over to make room
+            var icon = label == "Shop" ? _shopIcon : label == "Settings" ? _settingsIcon : label == "How to Play" ? _helpIcon : null;
+            bool hasIcon = icon != null;
+            if (label == "Trophies")  // pixel trophy instead of a texture
+            {
+                scale = MathF.Min(scale, (button.Width - 70) / font.MeasureString(label).X);
+                size = font.MeasureString(label) * scale;
+                var spot = MenuButton.Inside(new Rectangle(button.X + 14, button.Center.Y - 14, 32, 31));
+                Achievements.DrawTrophy(ScreenManager.SpriteBatch, _pixel, spot.Location.ToVector2(), TransitionAlpha, true, 0.9f * spot.Width / 32f);
+                hasIcon = true;
+            }
+            else if (hasIcon)
+            {
+                scale = MathF.Min(scale, (button.Width - 70) / font.MeasureString(label).X);
+                size = font.MeasureString(label) * scale;
+                ScreenManager.SpriteBatch.Draw(icon, MenuButton.Inside(new Rectangle(button.X + 12, button.Center.Y - icon.Height / 2, icon.Width, icon.Height)), Color.White * TransitionAlpha);
+            }
             var position = new Vector2(button.Center.X - size.X / 2 + (hasIcon ? 20 : 0), button.Center.Y - size.Y / 2);
-            ScreenManager.SpriteBatch.DrawString(font, label, position + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-            ScreenManager.SpriteBatch.DrawString(font, label, position, (hover ? Color.Yellow : Color.White) * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, label, MenuButton.TextPos(position) + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, label, MenuButton.TextPos(position), (hover ? Color.Yellow : Color.White) * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
         }
 
         // Draws text centered left to right on the screen (with a shadow so it stands out)
@@ -275,8 +341,8 @@ namespace Runner_Game.Screens
 
             Vector2 size = font.MeasureString(text) * scale;
             Vector2 position = new Vector2((viewport.Width - size.X) / 2, y);
-            ScreenManager.SpriteBatch.DrawString(font, text, position + new Vector2(3), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-            ScreenManager.SpriteBatch.DrawString(font, text, position, color * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position) + new Vector2(3), Color.Black * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position), color * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
         }
     }
 }

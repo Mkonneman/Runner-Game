@@ -16,16 +16,16 @@ namespace Runner_Game.Screens
         private Texture2D _button;
         private SoundEffect _testSound;   // plays when the sound effect volume changes so you can hear it
 
-        // Rows go music, sound effects, smash ring, Controls, Reset, then Back
-        private static readonly string[] Labels = { "Music", "Sound effects", "Smash ring" };
-        private const int RowY = 170;          // y of the first row
-        private const int RowSpacing = 55;
-        private static readonly Rectangle ControlsButton = new Rectangle(237, 340, 185, 44);
-        private static readonly Rectangle ResetButton = new Rectangle(432, 340, 185, 44);
-        private static readonly Rectangle BackButton = new Rectangle(367, 400, 120, 44);
-        private const int ControlsRow = 3;
-        private const int ResetRow = 4;
-        private const int BackRow = 5;
+        // Rows go music, sound effects, smash ring, skin effects, Controls, Reset, then Back
+        private static readonly string[] Labels = { "Music", "Sound effects", "Smash ring", "Skin effects", "Infinite money", "Start at", "Hitboxes" };
+        private const int RowY = 146;          // y of the first row
+        private const int RowSpacing = 32;
+        private static readonly Rectangle ControlsButton = new Rectangle(237, 378, 185, 44);
+        private static readonly Rectangle ResetButton = new Rectangle(432, 378, 185, 44);
+        private static readonly Rectangle BackButton = new Rectangle(367, 426, 120, 44);
+        private const int ControlsRow = 7;
+        private const int ResetRow = 8;
+        private const int BackRow = 9;
         private int _selected;
         private bool _confirmReset;   // Reset needs a second press so you dont wipe everything by accident
         private string _message = "";
@@ -125,16 +125,20 @@ namespace Runner_Game.Screens
                 _testSound.Play();
             }
             if (row == 2) Settings.SmashRingOpacity = Step(Settings.SmashRingOpacity, 0.25f * direction);
+            if (row == 3) Settings.SkinFxAmount = Step(Settings.SkinFxAmount, 0.25f * direction);
+            if (row == 4) Settings.InfiniteMoney = !Settings.InfiniteMoney;
+            if (row == 6) Settings.ShowHitboxes = !Settings.ShowHitboxes;
+            if (row == 5) Settings.TestStart = (Settings.TestStart + direction + Settings.StartNames.Length) % Settings.StartNames.Length;  // either arrow flips it
         }
 
         // Rounded so repeated 0.1 steps land exactly on 0 and 1
         private static float Step(float value, float amount) => MathHelper.Clamp(MathF.Round((value + amount) * 100) / 100, 0, 1);
 
-        private static float Value(int row) => row == 0 ? Settings.MusicVolume : row == 1 ? Settings.SfxVolume : Settings.SmashRingOpacity;
+        private static float Value(int row) => row == 0 ? Settings.MusicVolume : row == 1 ? Settings.SfxVolume : row == 2 ? Settings.SmashRingOpacity : row == 3 ? Settings.SkinFxAmount : Settings.InfiniteMoney ? 1 : 0;
 
         // Whole row (for hover) and its < / > buttons
-        private static Rectangle RowRectangle(int row) => new Rectangle(237, RowY + row * RowSpacing - 6, 380, 44);
-        private static Rectangle ArrowRectangle(int row, int direction) => new Rectangle(direction < 0 ? 447 : 567, RowY + row * RowSpacing - 4, 40, 40);
+        private static Rectangle RowRectangle(int row) => new Rectangle(237, RowY + row * RowSpacing - 2, 380, 30);
+        private static Rectangle ArrowRectangle(int row, int direction) => new Rectangle(direction < 0 ? 447 : 567, RowY + row * RowSpacing - 2, 30, 30);
 
         public override void Draw(GameTime gameTime)
         {
@@ -147,25 +151,25 @@ namespace Runner_Game.Screens
 
             // Darken the title and put a panel behind the menu
             spriteBatch.Draw(_pixel, new Rectangle(0, 0, viewport.Width, viewport.Height), Color.Black * 0.5f * TransitionAlpha);
-            spriteBatch.Draw(_pixel, new Rectangle(217, 90, 420, 380), new Color(10, 20, 30) * 0.9f * TransitionAlpha);
+            spriteBatch.Draw(_pixel, new Rectangle(217, 90, 420, 385), new Color(10, 20, 30) * 0.9f * TransitionAlpha);
             DrawText("Settings", new Vector2(427 - ScreenManager.TitleFont.MeasureString("Settings").X * 0.5f, 100), Color.Yellow, 1f, ScreenManager.TitleFont);
 
             for (int i = 0; i < Labels.Length; i++)
             {
                 bool selected = i == _selected;
                 if (selected) spriteBatch.Draw(_pixel, RowRectangle(i), new Color(30, 90, 60) * 0.85f * TransitionAlpha);
-                DrawText(Labels[i], new Vector2(252, RowY + i * RowSpacing), selected ? Color.Yellow : Color.White, 0.6f);
+                DrawText(Labels[i], new Vector2(252, RowY + i * RowSpacing), selected ? Color.Yellow : Color.White, 0.52f);
 
                 // < value >
                 float value = Value(i);
-                string text = i == 2 && value == 0 ? "Off" : $"{value * 100:0}%";
+                string text = i == 6 ? (Settings.ShowHitboxes ? "On" : "Off") : i == 5 ? Settings.StartNames[Settings.TestStart] : i == 4 ? (value > 0 ? "On" : "Off") : i >= 2 && value == 0 ? "Off" : $"{value * 100:0}%";
                 foreach (int direction in new[] { -1, 1 })
                 {
                     var arrow = ArrowRectangle(i, direction);
                     MenuButton.Draw(spriteBatch, _button, arrow, MenuButton.Tint(arrow.Contains(mouse)) * TransitionAlpha);
-                    DrawText(direction < 0 ? "<" : ">", new Vector2(arrow.X + 12, arrow.Y + 4), Color.White, 0.6f);
+                    DrawText(direction < 0 ? "<" : ">", new Vector2(arrow.X + 9, arrow.Y + 2), Color.White, 0.55f);
                 }
-                DrawText(text, new Vector2(527 - font.MeasureString(text).X * 0.3f, RowY + i * RowSpacing), Color.Cyan, 0.6f);
+                DrawText(text, new Vector2(527 - font.MeasureString(text).X * 0.3f, RowY + i * RowSpacing), Color.Cyan, 0.52f);
             }
 
             // Controls button opens the keybinds
@@ -191,8 +195,8 @@ namespace Runner_Game.Screens
         private void DrawText(string text, Vector2 position, Color color, float scale, SpriteFont font = null)
         {
             font ??= ScreenManager.MenuFont;
-            ScreenManager.SpriteBatch.DrawString(font, text, position + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-            ScreenManager.SpriteBatch.DrawString(font, text, position, color * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position) + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position), color * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
         }
     }
 }

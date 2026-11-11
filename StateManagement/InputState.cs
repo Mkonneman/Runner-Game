@@ -26,6 +26,7 @@ namespace Runner_Game.StateManagement
             CurrentKeyboardState = Keyboard.GetState();
             CurrentGamePadState = GamePad.GetState(PlayerIndex.One);
             Controls.Update();
+            Runner_Game.Screens.MenuButton.Update(1f / 60f);  // shortcut: assumes 60fps, pass real dt if the frame rate ever changes
         }
 
         /// <summary>

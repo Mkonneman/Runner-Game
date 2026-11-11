@@ -55,7 +55,7 @@ namespace Runner_Game.Screens
             "You hit a wall. Literally.",
             "Brick-ed it.",
             "The wall wins this round.",
-            "Wall: 1, You: 0.",
+            "Wall: {walls}, You: 0",  // {walls} = how many times a wall got you
             "Pro tip: walls don't move. You do.",
             "You stone-walled yourself.",
             "That wall had your name on it. Now it has your face.",
@@ -84,6 +84,14 @@ namespace Runner_Game.Screens
             "You rocked it.",
         };
 
+        private static readonly string[] NoWeaponPuns =
+        {
+            "Forgot your weapon? That's a rock-ie mistake.",
+            "Bare hands vs a cave. The cave won.",
+            "Next time pack something heavier than hope.",
+            "No weapon equipped. Bold. Very bold.",
+        };
+
         private static readonly string[] HolePuns =
         {
             "You fell for it.",
@@ -99,6 +107,7 @@ namespace Runner_Game.Screens
             "Crystal clear mistake.",
             "That was a sharp decision.",
         };
+        public static int WallDeaths;     // every death to a wall ever (saved)
         private static string _lastPun;  // so the same pun never shows twice in a row
         private readonly string _pun;
         private MouseState _lastMouse;
@@ -112,7 +121,7 @@ namespace Runner_Game.Screens
             _score = score;
 
             // Random pun picked from whatever killed you (rerolls if it's the one you just saw)
-            var puns = cause switch
+            var puns = cause != DeathCause.Door && Shop.Equipped(Slot.Weapon) == null ? NoWeaponPuns : cause switch
             {
                 DeathCause.Wall => WallPuns,
                 DeathCause.Laser => LaserPuns,
@@ -124,7 +133,11 @@ namespace Runner_Game.Screens
             string pick;
             do pick = puns[RandomHelper.Next(0, puns.Length - 1)]; while (pick == _lastPun);
             _lastPun = pick;
-            _pun = pick;
+            if (cause == DeathCause.Wall) { WallDeaths++; SaveSystem.Save(); }
+            Achievements.Unlock("first_run");
+            if (WallDeaths >= 10) Achievements.Unlock("walls_died_10");
+            _pun = pick.Replace("{walls}", WallDeaths.ToString());
+            if (score == 67 || Shop.GemsFromScore(score) == 67) _pun = "6... 7!";  // the meme beats any other pun
 
             // Popup so the crashed game stays visible behind it
             IsPopup = true;
@@ -168,7 +181,7 @@ namespace Runner_Game.Screens
             // Both close this screen and the run under it (the title is still underneath)
             ExitScreen();
             _gameplay.ExitScreen();
-            if (_selected == 0) ScreenManager.AddScreen(new GameplayScreen());
+            if (_selected == 0) ScreenManager.AddScreen(TitleScreen.NewRun());
             if (_selected == 1) ScreenManager.AddScreen(new ShopScreen());  // spend those gems right away, Back drops you on the title
         }
 
@@ -201,15 +214,15 @@ namespace Runner_Game.Screens
                 var rect = OptionRectangle(i);
                 var buttonFont = ScreenManager.TitleFont;
                 bool selected = i == _selected;
-                spriteBatch.Draw(_button, rect, (selected ? Color.White : new Color(170, 180, 200)) * TransitionAlpha);
+                spriteBatch.Draw(_button, MenuButton.Squash(rect, selected), (selected ? Color.White : new Color(170, 180, 200)) * TransitionAlpha);
                 float scale = MathF.Min(0.65f, (rect.Width - 28) / buttonFont.MeasureString(Options[i]).X);
                 Vector2 size = buttonFont.MeasureString(Options[i]) * scale;
                 // Shop gets the gem pouch on the left and its text nudged over to make room
                 bool hasIcon = Options[i] == "Shop";
-                if (hasIcon) ScreenManager.SpriteBatch.Draw(_shopIcon, new Vector2(rect.X + 14, rect.Center.Y - _shopIcon.Height / 2), Color.White * TransitionAlpha);
+                if (hasIcon) ScreenManager.SpriteBatch.Draw(_shopIcon, MenuButton.Inside(new Rectangle(rect.X + 14, rect.Center.Y - _shopIcon.Height / 2, _shopIcon.Width, _shopIcon.Height)), Color.White * TransitionAlpha);
                 var position = new Vector2(rect.Center.X - size.X / 2 + (hasIcon ? 20 : 0), rect.Center.Y - size.Y / 2);
-                spriteBatch.DrawString(buttonFont, Options[i], position + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-                spriteBatch.DrawString(buttonFont, Options[i], position, (selected ? Color.Yellow : Color.White) * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                spriteBatch.DrawString(buttonFont, Options[i], MenuButton.TextPos(position) + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
+                spriteBatch.DrawString(buttonFont, Options[i], MenuButton.TextPos(position), (selected ? Color.Yellow : Color.White) * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
             }
 
             spriteBatch.End();
@@ -223,8 +236,8 @@ namespace Runner_Game.Screens
 
             Vector2 size = font.MeasureString(text) * scale;
             Vector2 position = new Vector2((viewport.Width - size.X) / 2, y);
-            ScreenManager.SpriteBatch.DrawString(font, text, position + new Vector2(3), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-            ScreenManager.SpriteBatch.DrawString(font, text, position, color * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position) + new Vector2(3), Color.Black * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position), color * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
         }
     }
 }

@@ -29,5 +29,16 @@ namespace Runner_Game
 
         // How visible the smash range ring is (0 turns it off)
         public static float SmashRingOpacity { get; set; } = 0.25f;
+
+        // How much of the skin particle flair shows (0 turns it off)
+        public static float SkinFxAmount { get; set; } = 1f;
+
+        // Testing toggle, shop shows a pile of gems and buying is free
+        public static bool InfiniteMoney { get; set; }
+
+        // Testing: where Play drops you (not saved, always back to the blue cave on launch)
+        public static readonly string[] StartNames = { "Blue", "Orange", "Green", "Door", "Hall", "Boss" };
+        public static int TestStart;
+        public static bool ShowHitboxes;  // testing: outlines on the boss fight hitboxes (F3 flips it in the arena)
     }
 }

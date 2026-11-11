@@ -131,7 +131,15 @@ namespace Runner_Game.StateManagement
 
                 screen.Draw(gameTime);
             }
+
+            // Achievement banner sits above everything
+            if (_bannerPixel == null) { _bannerPixel = new Texture2D(GraphicsDevice, 1, 1); _bannerPixel.SetData(new[] { Color.White }); Achievements.Cup = Game.Content.Load<Texture2D>("Images/Menu/trophy"); }
+            Achievements.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
+            SpriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            Achievements.Draw(SpriteBatch, MenuFont, _bannerPixel);
+            SpriteBatch.End();
         }
+        private Texture2D _bannerPixel;
 
         /// <summary>
         /// Adds a screen to the ScreenManager

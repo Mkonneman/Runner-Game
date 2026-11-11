@@ -30,7 +30,7 @@ namespace Runner_Game
         private const float FALL_SPEED = 250f;
 
         // Rock color variations - the gray sprite gets tinted by one of these
-        private static readonly Color[] RockColors =
+        public static readonly Color[] RockColors =
         {
             Color.White,                 // plain gray stone
             new Color(255, 150, 100),    // lava rock
@@ -93,6 +93,10 @@ namespace Runner_Game
         /// <summary>
         /// This is colision detection of the bolder as a circle 
         /// </summary>
+        // Smaller circle for the rock hitting HIM (the old size, so near misses feel fair)
+        public BoundingCircle HitBounds => new BoundingCircle(Bounds.Center, FRAME_WIDTH * scale * 0.32f);
+
+        // Big circle for HIM hitting the rock (smash, rockets, lasers), covers the whole body
         public BoundingCircle Bounds
         {
             get
@@ -100,7 +104,7 @@ namespace Runner_Game
                 float height = FRAME_HEIGHT * scale;
                 float width = FRAME_WIDTH * scale;
                 var center = new Vector2(position.X, position.Y - height / 2f);
-                return new BoundingCircle(center, width * 0.32f); // a bit inside the spikes 
+                return new BoundingCircle(center, width * 0.42f); // covers the body, only the spike tips stick out
             }
         }
 

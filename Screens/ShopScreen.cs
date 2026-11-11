@@ -39,7 +39,7 @@ namespace Runner_Game.Screens
         private float _blinkTimer = 3f;
 
         // Tabs for each gear slot across the top, items in a 4 wide grid under them, then Gear and Back at the bottom
-        private static readonly string[] TabNames = { "Weapons", "Abilities", "Armor" };
+        private static readonly string[] TabNames = { "Weapons", "Abilities", "Armor", "Skins" };
         private const int GridX = 330;
         private const int GridY = 108;
         private const int Columns = 4;
@@ -47,7 +47,7 @@ namespace Runner_Game.Screens
         private const int PanelHeight = 126;
         private static readonly Rectangle GearButton = new Rectangle(330, 420, 150, 44);
         private static readonly Rectangle BackButton = new Rectangle(684, 420, 150, 44);
-        private static Rectangle TabRectangle(int t) => new Rectangle(GridX + t * 168, 60, 160, 38);
+        private static Rectangle TabRectangle(int t) => new Rectangle(GridX + t * 126, 60, 120, 38);  // 4 tabs fit across the grid
         private static Rectangle PanelRectangle(int i) => new Rectangle(GridX + i % Columns * (PanelWidth + 8), GridY + i / Columns * (PanelHeight + 6), PanelWidth, PanelHeight);
 
         // Where the selection is, row -1 is the tabs, 0 and 1 are items, 2 is the bottom buttons
@@ -58,6 +58,7 @@ namespace Runner_Game.Screens
 
         // Short message after trying to buy ("Not enough gems")
         private string _message = "";
+        private string _cheat = "";
         private float _messageTime;
 
         public ShopScreen()
@@ -132,6 +133,18 @@ namespace Runner_Game.Screens
 
         public override void HandleInput(GameTime gameTime, InputState input)
         {
+            // Cheat code, type RICH in the shop for basically infinite gems
+            foreach (var key in new[] { Keys.R, Keys.I, Keys.C, Keys.H })
+                if (input.IsNewKeyPress(key)) _cheat = (_cheat + key).Length > 16 ? key.ToString() : _cheat + key;
+            if (_cheat.EndsWith("RICH"))
+            {
+                _cheat = "";
+                Shop.AddGems(999999 - Shop.Gems);
+                _message = "Cheat on, gems maxed!";
+                _messageTime = 2.5f;
+                _buySound.Play(0.8f, 0.3f, 0f);
+            }
+
             // Q / E or the bumpers flip tabs from anywhere
             if (input.IsNewKeyPress(Keys.Q) || input.IsNewButtonPress(Buttons.LeftShoulder)) SwitchTab(_tab - 1);
             if (input.IsNewKeyPress(Keys.E) || input.IsNewButtonPress(Buttons.RightShoulder)) SwitchTab(_tab + 1);
@@ -189,7 +202,12 @@ namespace Runner_Game.Screens
         private void TryBuy(Item item)
         {
             bool owned = Shop.Owns(item.Id);
-            if (Shop.IsMaxed(item.Id)) _message = owned && item.MaxLevel == 1 ? $"You already have the {item.Name}" : "That's maxed out";
+            if (owned && item.Slot == Slot.Skin)
+            {
+                Shop.Equip(item.Id);  // owned skins just get worn
+                _message = $"Wearing the {item.Name}";
+            }
+            else if (Shop.IsMaxed(item.Id)) _message = owned && item.MaxLevel == 1 ? $"You already have the {item.Name}" : "That's maxed out";
             else if (Shop.Buy(item.Id))
             {
                 _message = owned ? $"{item.Name} is now level {Shop.Level(item.Id)}!" : $"Got the {item.Name}!";
@@ -278,17 +296,28 @@ namespace Runner_Game.Screens
                 if (Shop.IsEquipped(item.Id))
                     spriteBatch.Draw(_pixel, new Rectangle(rect.X + 6, rect.Y + 6, 10, 10), Color.LimeGreen * TransitionAlpha);  // green dot = equipped
 
-                spriteBatch.Draw(_icons[(int)item.Id], new Vector2(rect.Center.X - 24, rect.Y + 8), (owned ? Color.White : Color.Gray) * TransitionAlpha);
+                var rarity = Rarity.Of(item.Id);
+                var iconArea = new Rectangle(rect.Center.X - 24, rect.Y + 8, 48, 48);
+                Rarity.DrawGlow(spriteBatch, MenuButton.Inside(iconArea), rarity, (owned ? 1f : 0.5f) * TransitionAlpha);
+                spriteBatch.Draw(_icons[(int)item.Id], MenuButton.Inside(new Rectangle(rect.Center.X - 24, rect.Y + 8, _icons[(int)item.Id].Width, _icons[(int)item.Id].Height)), (owned ? Color.White : Color.Gray) * TransitionAlpha);
+                Rarity.DrawSparks(spriteBatch, MenuButton.Inside(iconArea), rarity, TransitionAlpha);
                 var titleFont = ScreenManager.TitleFont;
                 float nameScale = MathF.Min(0.34f, (rect.Width - 14) / titleFont.MeasureString(item.Name).X);
-                DrawText(item.Name, new Vector2(rect.Center.X - titleFont.MeasureString(item.Name).X * nameScale / 2, rect.Y + 60), selected ? Color.Yellow : Color.White, nameScale, titleFont);
+                var nameSize = titleFont.MeasureString(item.Name) * nameScale;
+                var namePos = new Vector2(rect.Center.X - nameSize.X / 2, rect.Y + 60);
+                DrawText(item.Name, namePos, selected ? Color.Lerp(rarity, Color.White, 0.35f) : rarity, nameScale, titleFont);  // name in its rarity color
+                Rarity.DrawSparks(spriteBatch, new Rectangle((int)namePos.X, (int)namePos.Y, (int)nameSize.X, (int)nameSize.Y), rarity, TransitionAlpha, 4);
 
                 // One bar per level, lit green once bought (single level items skip these)
                 if (owned && item.MaxLevel > 1)
                 {
                     int barWidth = (rect.Width - 24 - (item.MaxLevel - 1) * 4) / item.MaxLevel;
                     for (int b = 0; b < item.MaxLevel; b++)
-                        spriteBatch.Draw(_pixel, new Rectangle(rect.X + 12 + b * (barWidth + 4), rect.Y + 86, barWidth, 6), (b < Shop.Level(item.Id) ? Color.LimeGreen : Color.Black * 0.6f) * TransitionAlpha);
+                    {
+                        var bar = MenuButton.Inside(new Rectangle(rect.X + 12 + b * (barWidth + 4), rect.Y + 86, barWidth, 6));  // squashes with the card
+                        spriteBatch.Draw(_pixel, new Rectangle(bar.X - 2, bar.Y - 2, bar.Width + 4, bar.Height + 4), Color.Black * TransitionAlpha);  // outline
+                        spriteBatch.Draw(_pixel, bar, (b < Shop.Level(item.Id) ? Color.LimeGreen : new Color(40, 40, 50)) * TransitionAlpha);
+                    }
                 }
 
                 if (Shop.IsMaxed(item.Id))
@@ -301,7 +330,7 @@ namespace Runner_Game.Screens
                     int cost = Shop.Price(item.Id);
                     string price = cost.ToString();
                     float priceWidth = font.MeasureString(price).X * 0.4f;
-                    spriteBatch.Draw(_gem, new Rectangle((int)(rect.Center.X - (priceWidth + 22) / 2), rect.Y + 100, 18, 18), fade);
+                    spriteBatch.Draw(_gem, MenuButton.Inside(new Rectangle((int)(rect.Center.X - (priceWidth + 22) / 2), rect.Y + 100, 18, 18)), fade);
                     DrawText(price, new Vector2(rect.Center.X - (priceWidth + 22) / 2 + 22, rect.Y + 98), Shop.Gems >= cost ? Color.Cyan : Color.IndianRed, 0.4f);
                 }
             }
@@ -319,7 +348,33 @@ namespace Runner_Game.Screens
             DrawButton(GearButton, "Gear", _row == 2 && _col == 0);
             DrawButton(BackButton, "Back", _row == 2 && _col == 1);
 
+            // Hovering an item pops up its upgrade path, every level's stat in that level's rarity color
+            var mouse = VirtualMouse.GetState().Position;
+            for (int i = 0; i < items.Length; i++)
+                if (PanelRectangle(i).Contains(mouse)) { DrawUpgradePath(items[i], mouse); break; }
+
             spriteBatch.End();
+        }
+
+        // Mini popup in the stone box, one line per level, the current one marked, ones you don't have yet dimmed
+        private void DrawUpgradePath(Item item, Point mouse)
+        {
+            var font = ScreenManager.MenuFont;
+            const float Scale = 0.3f;
+            int level = Shop.Level(item.Id), lineH = 18;
+            var lines = new string[item.MaxLevel];
+            for (int l = 0; l < item.MaxLevel; l++) lines[l] = $"{(l + 1 == level ? ">" : " ")} Lv {l + 1}  {item.Show(item.Values[l])}";
+            float width = font.MeasureString(item.Name).X * 0.36f;
+            foreach (var line in lines) width = MathF.Max(width, font.MeasureString(line).X * Scale);
+            int w = (int)width + 28, h = 34 + item.MaxLevel * lineH;
+            var box = new Rectangle(Math.Min(mouse.X + 16, Game1.VirtualWidth - w - 6), Math.Min(mouse.Y + 16, Game1.VirtualHeight - h - 6), w, h);
+            MenuButton.Draw(ScreenManager.SpriteBatch, _button, box, Color.White * 0.95f * TransitionAlpha);
+            DrawText(item.Name, new Vector2(box.X + 14, box.Y + 7), Rarity.Of(item.Id), 0.36f);
+            for (int l = 0; l < item.MaxLevel; l++)
+            {
+                var color = Rarity.Colors[Rarity.TierAt(item.Id, l + 1)];
+                DrawText(lines[l], new Vector2(box.X + 14, box.Y + 30 + l * lineH), l < level ? color : color * 0.5f, Scale);
+            }
         }
 
         // Stone button with centered text
@@ -337,8 +392,8 @@ namespace Runner_Game.Screens
         private void DrawText(string text, Vector2 position, Color color, float scale, SpriteFont font = null)
         {
             font ??= ScreenManager.MenuFont;
-            ScreenManager.SpriteBatch.DrawString(font, text, position + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
-            ScreenManager.SpriteBatch.DrawString(font, text, position, color * TransitionAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position) + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
+            ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position), color * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
         }
     }
 }
