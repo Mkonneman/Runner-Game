@@ -34,8 +34,8 @@ namespace Runner_Game.Screens
         private float _time;
 
         // The merchant stands close to the screen (feet cut off), breathing, with glowing eyes that blink now and then
-        private static readonly Vector2 MerchantFeet = new(10, 550);           // bottom left of the art, below the screen
-        private static readonly Vector2[] Eyes = { new(192, 128), new(230, 128) }; // eye centers in merchant.png
+        private static readonly Vector2 MerchantFeet = new(60, 590);           // bottom left of the shopkeeper, below the screen so she's cut off under the knees
+        private static readonly Vector2[] Eyes = { };  // the new shopkeeper has normal eyes, no glow (the old merchant had 192,128 and 230,128)
         private float _blinkTimer = 3f;
 
         // Tabs for each gear slot across the top, items in a 4 wide grid under them, then Gear and Back at the bottom
@@ -246,13 +246,6 @@ namespace Runner_Game.Screens
             // Breathing, he stretches up and down slowly from his feet (Kinda creepy, I love it)
             float breath = 1f + 0.015f * MathF.Sin(_time * 2.2f);
             spriteBatch.Draw(_merchant, MerchantFeet, null, fade, 0f, new Vector2(0, _merchant.Height), new Vector2(1f, breath), SpriteEffects.None, 0f);
-
-            // Blinking puts dark lids over the eyes
-            if (_blinkTimer < 0)
-            {
-                foreach (var eye in Eyes)
-                    spriteBatch.Draw(_pixel, new Rectangle((int)EyePosition(eye, breath).X - 12, (int)EyePosition(eye, breath).Y - 9, 24, 18), new Color(20, 20, 24) * TransitionAlpha);
-            }
             spriteBatch.End();
 
             // Lamp glows flicker (two waves plus a little noise) and the sparks glow on top, added light so they brighten the art

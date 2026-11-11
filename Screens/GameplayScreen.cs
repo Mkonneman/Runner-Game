@@ -89,6 +89,7 @@ namespace Runner_Game.Screens
         private const float GemTipMin = 120f, GemTipMax = 185f;  // how far down a hanging gem reaches (his head gets to ~165 at the top of a jump, so the big ones block a full jump)
         private const float GemBuried = 0.3f;              // this much of the gem is up past the top of the screen so the curved rocky top looks stuck in the roof
         private Texture2D _gemTexture, _diamondTexture;
+        private Gem3D _gem3D;  // the diamond pickups are real 3D gems
         // Diamonds to grab, they come in little patterns
         private readonly List<Vector2> _diamonds = new();
         private readonly List<(Vector2 Pos, float Age)> _coinPops = new();  // pixel +1 that floats up off a grabbed diamond
@@ -309,6 +310,7 @@ namespace Runner_Game.Screens
             _pickupSound = _content.Load<SoundEffect>("Audio/Sfx/buy");
             _gemTexture = _content.Load<Texture2D>("Images/Gameplay/gem_spike");
             _diamondTexture = _content.Load<Texture2D>("Images/Gameplay/diamond");
+            _gem3D = new Gem3D(ScreenManager.GraphicsDevice);
             _bubbleSound = _content.Load<SoundEffect>("Audio/Sfx/bubble");
             _reviveSound = _content.Load<SoundEffect>("Audio/Sfx/revive");
             _timeSlowSound = _content.Load<SoundEffect>("Audio/Sfx/time_slow");
@@ -1477,9 +1479,14 @@ namespace Runner_Game.Screens
                 else
                     spriteBatch.Draw(_gemTexture, new Rectangle((int)gem.X - _gemTexture.Width / 2, (int)SpikeBottom - _gemTexture.Height + 4, _gemTexture.Width, _gemTexture.Height), Color.White * TransitionAlpha);
             }
-            // Diamonds bob a little so they catch your eye
-            foreach (var d in _diamonds)
-                spriteBatch.Draw(_diamondTexture, new Rectangle((int)d.X - 12, (int)(d.Y - 12 + 3 * MathF.Sin(_scrollTime * 5 + d.X * 0.05f)), 24, 24), Color.White * TransitionAlpha);
+            // Diamonds are 3D gems that spin and bob, SpriteBatch has to stop while the 3D draws then pick back up
+            if (_diamonds.Count > 0)
+            {
+                spriteBatch.End();
+                foreach (var d in _diamonds)
+                    _gem3D.Draw(new Vector2(d.X, d.Y + 3 * MathF.Sin(_scrollTime * 5 + d.X * 0.05f)), 11f, _scrollTime * 3 + d.X * 0.02f, shake, TransitionAlpha);
+                spriteBatch.Begin(transformMatrix: shake);
+            }
             DrawDrillCracks();
 
             // Blinking red ! at the right edge while a wall is still off screen
@@ -1517,11 +1524,20 @@ namespace Runner_Game.Screens
                 _ringAlpha = target < _ringAlpha ? target : MathHelper.Min(target, _ringAlpha + (float)gameTime.ElapsedGameTime.TotalSeconds * 1.5f);
                 float ready = _ringAlpha * SmashRingOpacity;
                 DrawDottedCircle(head, SmashReach(), Color.White * ready * TransitionAlpha);
+            }
+
+            // Hitboxes setting: rock smash circles (yellow when in reach), the smaller circle that hurts you (red), and his box (green)
+            if (Settings.ShowHitboxes)
+            {
                 foreach (var bolder in _bolders)
                 {
-                    if (InSmashRange(bolder))
-                        DrawDottedCircle(bolder.Bounds.Center, bolder.Bounds.Radius, Color.Yellow * ready * TransitionAlpha);
+                    DrawDottedCircle(bolder.Bounds.Center, bolder.Bounds.Radius, (InSmashRange(bolder) ? Color.Yellow : Color.White * 0.5f) * TransitionAlpha);
+                    DrawDottedCircle(bolder.HitBounds.Center, bolder.HitBounds.Radius, Color.Red * TransitionAlpha);
                 }
+                var hb = _runner.Bounds;
+                DrawDottedCircle(new Vector2(hb.X + hb.Width / 2, hb.Y + hb.Height / 2), 2, Color.Lime);
+                spriteBatch.Draw(_pixel, new Rectangle((int)hb.X, (int)hb.Y, (int)hb.Width, 2), Color.Lime); spriteBatch.Draw(_pixel, new Rectangle((int)hb.X, (int)(hb.Y + hb.Height) - 2, (int)hb.Width, 2), Color.Lime);
+                spriteBatch.Draw(_pixel, new Rectangle((int)hb.X, (int)hb.Y, 2, (int)hb.Height), Color.Lime); spriteBatch.Draw(_pixel, new Rectangle((int)(hb.X + hb.Width) - 2, (int)hb.Y, 2, (int)hb.Height), Color.Lime);
             }
 
             // Draw Runner (aka the player)

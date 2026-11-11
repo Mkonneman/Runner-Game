@@ -59,7 +59,7 @@ public class Game1 : Game
         Shop.Check();
         Shop.Load(0, null, null);  // starter gear, in case there is no save yet
         SaveSystem.Load();  // Gems, gear and settings from last time
-        _scene = new RenderTarget2D(GraphicsDevice, VirtualWidth, VirtualHeight);
+        _scene = new RenderTarget2D(GraphicsDevice, VirtualWidth, VirtualHeight, false, SurfaceFormat.Color, DepthFormat.Depth24);  // depth buffer so 3D stuff (the shop merchant) sorts right
     }
 
     protected override void Update(GameTime gameTime)
