@@ -11,6 +11,7 @@ Sound Effects (Content/Audio/Sfx)
 - buy.wav – Shop purchase chime, procedurally generated with Claude (Anthropic) using Python/NumPy
 - laser_charge.wav, laser_fire.wav – Laser warning whine and zap, procedurally generated with Claude (Anthropic) using Python/NumPy
 - wall_warning.wav – Wall incoming sound, made by Maxwell Konneman in jsfxr (https://sfxr.me)
+- Pack/*.wav (jump, double_jump, gem, diamond, hurt, golem_hit, shield_bonk, slam, golem_die, rocket, rocket_boom, beam, heal, achievement, menu_move, menu_pick) – "50 Sound FX Effect" pack (source: please fill in)
 
 Fonts (Content/Fonts)
 - alagard.ttf (TitleFont) – "Alagard" by Hewett Tsoi, 100% Free, Dafont (https://www.dafont.com/alagard.font)

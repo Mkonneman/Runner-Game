@@ -78,7 +78,7 @@ namespace Runner_Game
 
         public static void Update(float dt)
         {
-            if (_showing == null && _queue.Count > 0) { _showing = _queue.Dequeue(); _t = 0; }
+            if (_showing == null && _queue.Count > 0) { _showing = _queue.Dequeue(); _t = 0; Sfx.Play("achievement", 0.6f, 0f); }
             if (_showing == null) return;
             if ((_t += dt) > HoldTime + LiftTime) _showing = null;
         }

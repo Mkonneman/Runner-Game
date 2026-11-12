@@ -56,6 +56,7 @@ namespace Runner_Game.StateManagement
         protected override void LoadContent()
         {
             SpriteBatch = new SpriteBatch(GraphicsDevice);
+            Sfx.Load(_content);
             MenuFont = _content.Load<SpriteFont>("Fonts/BodyFont");
             TitleFont = _content.Load<SpriteFont>("Fonts/TitleFont");
             BigFont = _content.Load<SpriteFont>("Fonts/BigFont");

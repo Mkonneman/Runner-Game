@@ -27,6 +27,7 @@ namespace Runner_Game.Screens
         private Tilemap _floor;
         private static readonly Color CeilingColor = new(32, 33, 36);  // solid rock under the floor
         private RockDustParticleSystem _dust;
+        private Texture2D _disc;  // soft filled circle for the bubble, same one the caves use
         private SkinFx _skinFx;
 
         // The boss waiting in the arena
@@ -105,6 +106,15 @@ namespace Runner_Game.Screens
             _floor = new Tilemap(_content, "Images/Arena/floor_tiles_grey", "Maps/cave_floor.txt");
             _dust = new RockDustParticleSystem(ScreenManager.Game);
             _dust.Initialize();
+            const int D = 64;
+            var disc = new Color[D * D];
+            for (int i = 0; i < disc.Length; i++)
+            {
+                float d = Vector2.Distance(new Vector2(i % D, i / D), new Vector2(D / 2f - 0.5f)) / (D / 2f);
+                disc[i] = Color.White * MathHelper.Clamp((1 - d) * 4, 0, 1) * (0.5f + 0.5f * d);
+            }
+            _disc = new Texture2D(ScreenManager.GraphicsDevice, D, D);
+            _disc.SetData(disc);
             _skinFx = new SkinFx();
             _golem.Load(_content);
             _laserSound = _content.Load<SoundEffect>("Audio/Sfx/laser4");
@@ -299,6 +309,11 @@ namespace Runner_Game.Screens
             _skinFx.Update(dt, _runner, _runner.GroundY, _smashed);
             _smashed = false;
             _dust.Update(gameTime);
+            if (_bubbleLeft > 0 && RandomHelper.Next(0, 3) == 0)  // sparkles around the bubble like in the caves
+            {
+                float angle = RandomHelper.NextFloat(0, MathHelper.TwoPi);
+                _dust.PlaceDust(BubbleMiddle() + new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * BubbleRadius(), new Color(140, 220, 255));
+            }
             _crash.Update(gameTime);
 
             // In the hallway he pushes the camera, running past the middle scrolls it instead (stops once the arena lines up)
@@ -361,10 +376,15 @@ namespace Runner_Game.Screens
         }
 
         // Golem attacks land here (same damage as a boulder, then the blink so it can't double hit)
+        // Bubble sized off him (78 in the caves where he's 58 tall) so it fits however big he's drawn
+        private Vector2 BubbleMiddle() => new(_runner.Bounds.X + _runner.Bounds.Width / 2, _runner.Bounds.Y + _runner.Bounds.Height / 2);
+        private float BubbleRadius() => _runner.Bounds.Height * 78f / 58f;
+
         private void HurtPlayer(Color tint, string kind = "hit")
         {
             if (_hurtTime > 0 || _done) return;
             if (kind == "ground" && _armor == ItemId.HoverBoots) return;  // floats over the shockwaves
+            Sfx.Play("hurt", 0.7f);
             if (_bubbleLeft > 0)  // bubble pops instead
             {
                 _bubbleLeft = 0; _hurtTime = 0.6f;
@@ -412,7 +432,7 @@ namespace Runner_Game.Screens
                 int hit = _golem.Smash(pos, 12, 2, FistBroken);
                 if (hit >= 0 || pos.X < -40 || pos.X > 900 || pos.Y < -40 || pos.Y > 500)
                 {
-                    if (hit >= 0) { _crash.PlaceCrash(pos, new Color(255, 150, 40)); _crashSound.Play(0.9f, -0.2f, 0f); _shakeTime = 0.2f; if (hit == 1) _score += 150; }
+                    if (hit >= 0) { Sfx.Play("rocket_boom", 0.6f); _crash.PlaceCrash(pos, new Color(255, 150, 40)); _crashSound.Play(0.9f, -0.2f, 0f); _shakeTime = 0.2f; if (hit == 1) _score += 150; }
                     _rockets.RemoveAt(r);
                 }
             }
@@ -438,6 +458,7 @@ namespace Runner_Game.Screens
                 case ItemId.PatchUp:
                     if (_health >= _maxHealth) return;
                     _health = MathF.Min(_maxHealth, _health + Shop.Value(ItemId.PatchUp) * _maxHealth);
+                    Sfx.Play("heal");
                     for (int k = 0; k < 14; k++) _dust.PlaceDust(_runner.Position + new Vector2(RandomHelper.NextFloat(-25, 25), RandomHelper.NextFloat(-90, -10)), new Color(120, 255, 140));
                     break;
                 case ItemId.BubbleShield:
@@ -449,6 +470,7 @@ namespace Runner_Game.Screens
                     break;
                 case ItemId.RocketLauncher:
                     _rockets.Add((_runner.Muzzle, _runner.Facing > 0 ? 0f : MathF.PI));
+                    Sfx.Play("rocket");
                     _runner.ShootTime = Runner.ShootPose;
                     _rollSound.Play(0.9f, -0.6f, 0f);
                     break;
@@ -545,12 +567,7 @@ namespace Runner_Game.Screens
             }
             if (_bubbleLeft > 0 && (_bubbleLeft > 1 || (int)(_bubbleLeft * 8) % 2 == 0))
             {
-                var mid = new Vector2(_runner.Position.X, _runner.Bounds.Y + _runner.Bounds.Height / 2);
-                for (float a = 0; a < MathHelper.TwoPi; a += 0.12f)
-                {
-                    var p = mid + new Vector2(MathF.Cos(a), MathF.Sin(a)) * (_runner.Bounds.Height * 0.65f);
-                    spriteBatch.Draw(_pixel, new Rectangle((int)p.X - 2, (int)p.Y - 2, 4, 4), new Color(140, 220, 255) * TransitionAlpha);
-                }
+                spriteBatch.Draw(_disc, BubbleMiddle(), null, new Color(60, 150, 230) * 0.4f * TransitionAlpha, 0f, new Vector2(32), BubbleRadius() / 32f, SpriteEffects.None, 0f);  // same soft bubble as the caves
             }
 
             // Boulders, the rock sprite spun as they roll

@@ -732,6 +732,7 @@ namespace Runner_Game.Screens
                 case ItemId.PatchUp:
                     if (_health >= _maxHealth) return;  // full already, dont waste it
                     Heal(MathF.Min(_maxHealth, _health + Shop.Value(ItemId.PatchUp) * _maxHealth));
+                    Sfx.Play("heal");
                     _healPulse = 0.5f;
                     for (int k = 0; k < 14; k++) _hoverDust.PlaceDust(_runner.Position + new Vector2(RandomHelper.NextFloat(-25, 25), RandomHelper.NextFloat(-110, -10)), new Color(120, 255, 140));
                     _swingSound.Play(0.5f, 0.5f, 0f);
@@ -747,6 +748,7 @@ namespace Runner_Game.Screens
                 case ItemId.RocketLauncher:
                     // Fwoosh, a rocket out of the launcher on his shoulder flies right till it hits something
                     _rockets.Add((_runner.Muzzle, 0f));
+                    Sfx.Play("rocket");
                     _runner.ShootTime = Runner.ShootPose;  // pulls the launcher out just for the shot
                     _swingSound.Play(0.9f, -0.6f, 0f);
                     break;
@@ -865,6 +867,7 @@ namespace Runner_Game.Screens
                 if (hit)
                 {
                     _crash.PlaceCrash(rocket, new Color(255, 150, 40));  // KABOOM
+                    Sfx.Play("rocket_boom", 0.6f);
                     Shake(8f, 0.3f);
                 }
                 if (hit || rocket.X > screenWidth + 40 || rocket.Y < -40 || rocket.Y > FloorY + 40) _rockets.RemoveAt(r);
@@ -1030,6 +1033,7 @@ namespace Runner_Game.Screens
             var box = GemBounds(_gems[g]);
             _crash.PlaceCrash(new Vector2(_gems[g].X, box.Top + box.Height / 2), _gems[g].Tint);
             _crashSound.Play(0.8f, 0.5f, 0f);  // higher pitch, sounds glassy
+            Sfx.Play("gem", 0.2f);
             Shake(4f, 0.2f);
             _score += GemPoints;
             _gems.RemoveAt(g);
@@ -1112,7 +1116,7 @@ namespace Runner_Game.Screens
                 {
                     _score += DiamondPoints;
                     _hoverDust.PlaceDust(_diamonds[d], new Color(150, 240, 255));
-                    _pickupSound.Play(0.35f, 0.6f, 0f);  // little ding
+                    Sfx.Play("diamond", 0.25f);  // little ding
                     _coinPops.Add((_diamonds[d], 0));
                     Achievements.Add("diamonds");
                     _diamonds.RemoveAt(d);
@@ -1328,6 +1332,7 @@ namespace Runner_Game.Screens
         private void Hurt(float damage, Color color, DeathCause cause)
         {
             if (_hurtTime > 0) return;
+            Sfx.Play("hurt", 0.7f);
             _dmgFrom = _dmgFill > 0 ? DamageGhost() : _healFill > 0 ? ShownHealth() : _health;
             _healFill = 0;  // a hit cancels a heal still filling
             _health -= damage;

@@ -201,10 +201,12 @@ namespace Runner_Game.Screens
             // Arrows / d-pad move around the buttons like they sit on screen: Play, then Shop Gear Trophies, then How to Play and Settings in the corners
             int[] top = { 0, 1, 4 }, bottom = { 2, 3 };
             int col = Array.IndexOf(top, _selectedButton), corner = Array.IndexOf(bottom, _selectedButton);
+            int was = _selectedButton;
             if (input.IsNewKeyPress(Keys.Down)) _selectedButton = _selectedButton < 0 ? 1 : col >= 0 ? bottom[col == 2 ? 1 : 0] : _selectedButton;
             else if (input.IsNewKeyPress(Keys.Up)) _selectedButton = col >= 0 ? -1 : corner >= 0 ? top[corner == 0 ? 0 : 2] : -1;
             else if (input.IsNewKeyPress(Keys.Right)) _selectedButton = col >= 0 ? top[Math.Min(col + 1, 2)] : corner >= 0 ? 3 : 1;
             else if (input.IsNewKeyPress(Keys.Left)) _selectedButton = col >= 0 ? top[Math.Max(col - 1, 0)] : corner >= 0 ? 2 : 1;
+            if (_selectedButton != was) Sfx.Play("menu_move", 0.4f, 0f);
 
             // Enter / A presses the picked button, or starts the run if none is picked. Space and Start always start
             bool confirm = input.IsNewKeyPress(Keys.Enter);
@@ -225,6 +227,7 @@ namespace Runner_Game.Screens
             if (click && TrophyButton.Contains(mouse.Position)) open = 4;
             if (!_enteringCave && open >= 0)
             {
+                Sfx.Play("menu_pick", 0.5f, 0f);
                 ScreenManager.AddScreen(open == 0 ? new ShopScreen() : open == 1 ? new GearScreen() : open == 2 ? new HowToPlayScreen() : open == 3 ? new SettingsScreen() : new AchievementsScreen());
                 return;
             }
