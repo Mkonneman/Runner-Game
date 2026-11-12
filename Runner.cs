@@ -208,6 +208,7 @@ namespace Runner_Game
             if (DoubleJump && AutoWalkTo == null && isJumping && !isFalling && !usedDouble && Controls.IsPressed(PlayerAction.Jump))
             {
                 usedDouble = true;
+                Sfx.Play("double_jump", 0.25f);
                 jumpCut = true;
                 verticalSpeed = -JUMP_SPEED * 0.8f;
             }
@@ -218,6 +219,7 @@ namespace Runner_Game
                 isJumping = true;
                 jumpCut = false;
                 verticalSpeed = -JUMP_SPEED * JumpBoost;
+                Sfx.Play("jump", 0.2f);
             }
 
             // With Spring Boots letting go of jump on the way up cuts it short, so tap = hop and hold = big jump

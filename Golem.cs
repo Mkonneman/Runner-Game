@@ -205,6 +205,7 @@ namespace Runner_Game
                         if (_t - dt < SlamTimes[k] && _t >= SlamTimes[k])
                         {
                             Landed?.Invoke();
+                            Sfx.Play("slam", 0.7f);
                             _waves.Add((Feet.X - 40, -1)); _waves.Add((Feet.X + 40, 1));
                         }
                     if (_t > SlamTimes[slams - 1] + 0.3f) Go(State.Idle);
@@ -287,6 +288,7 @@ namespace Runner_Game
             {
                 var (bx, age) = _beams[i];
                 age += dt;
+                if (age - dt < BeamWarn && age >= BeamWarn) Sfx.Play("beam", 0.35f, 0.2f);  // zap when it turns on
                 _beams[i] = (bx, age);
                 if (age > BeamWarn && age < BeamWarn + BeamOn && MathF.Abs(playerX - bx) < 8 + me.Width / 2)
                 {
@@ -335,10 +337,11 @@ namespace Runner_Game
             for (int i = _rocks.Count - 1; i >= 0; i--)
                 if (_rocks[i].Warn <= 0 && Vector2.Distance(_rocks[i].Pos, point) < reach + RockSize / 2) { fistBroken(_rocks[i].Pos); _rocks.RemoveAt(i); }
             if (_state == State.Waiting || Dying || Vector2.Distance(Body.Center, point) > reach + Body.Radius) return -1;
-            if (Immune) { _bonk = 0.25f; return 0; }
+            if (Immune) { _bonk = 0.25f; Sfx.Play("shield_bonk"); return 0; }
             Hp = Math.Max(0, Hp - damage);
             if (_state != State.Jump) _push = MathF.Sign(Body.Center.X - point.X + 0.01f) * 260 * damage;  // shoved away from the hit
             _hitFlash = 0.12f;
+            Sfx.Play(Hp == 0 ? "golem_die" : "golem_hit", Hp == 0 ? 0.9f : 0.6f);
             if (Hp == 0) { Go(State.Dying); _fists.Clear(); _rocks.Clear(); _waves.Clear(); _beams.Clear(); }
             return 1;
         }

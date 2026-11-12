@@ -1604,3 +1604,116 @@
 /processorParam:TextureFormat=Color
 /processorParam:Version=3.8.5.1
 /build:Images/Boss/golem_fist.png
+
+#begin Audio/Sfx/Pack/jump.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/jump.wav
+
+#begin Audio/Sfx/Pack/double_jump.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/double_jump.wav
+
+#begin Audio/Sfx/Pack/gem.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/gem.wav
+
+#begin Audio/Sfx/Pack/diamond.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/diamond.wav
+
+#begin Audio/Sfx/Pack/hurt.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/hurt.wav
+
+#begin Audio/Sfx/Pack/golem_hit.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/golem_hit.wav
+
+#begin Audio/Sfx/Pack/shield_bonk.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/shield_bonk.wav
+
+#begin Audio/Sfx/Pack/slam.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/slam.wav
+
+#begin Audio/Sfx/Pack/golem_die.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/golem_die.wav
+
+#begin Audio/Sfx/Pack/rocket.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/rocket.wav
+
+#begin Audio/Sfx/Pack/rocket_boom.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/rocket_boom.wav
+
+#begin Audio/Sfx/Pack/beam.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/beam.wav
+
+#begin Audio/Sfx/Pack/heal.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/heal.wav
+
+#begin Audio/Sfx/Pack/achievement.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/achievement.wav
+
+#begin Audio/Sfx/Pack/menu_move.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/menu_move.wav
+
+#begin Audio/Sfx/Pack/menu_pick.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Pack/menu_pick.wav
+
