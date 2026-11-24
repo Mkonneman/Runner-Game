@@ -15,16 +15,18 @@ namespace Runner_Game.Screens
         private readonly string _title, _line;
         private readonly string[] _labels;
         private readonly Action _yes, _no;     // _no null = second button opens the shop and this stays up (the door)
+        private readonly Action _third;        // optional small button under the two (Don't show again)
         private readonly bool _runMusic;
         private Texture2D _pixel, _button;
         private Song _music;
         private int _choice;
         private MouseState _lastMouse;
-        private static Rectangle Button(int b) => new Rectangle(b == 0 ? 252 : 447, 250, 155, 48);
+        private static Rectangle Button(int b) => b == 2 ? new Rectangle(327, 316, 200, 36) : new Rectangle(b == 0 ? 252 : 447, 250, 155, 48);
+        private int ButtonCount => _third != null ? 3 : 2;
 
-        public PromptScreen(string title, string line, string yesLabel, string noLabel, Action yes, Action no = null, bool runMusic = false)
+        public PromptScreen(string title, string line, string yesLabel, string noLabel, Action yes, Action no = null, bool runMusic = false, string thirdLabel = null, Action third = null)
         {
-            (_title, _line, _labels, _yes, _no, _runMusic) = (title, line, new[] { yesLabel, noLabel }, yes, no, runMusic);
+            (_title, _line, _labels, _yes, _no, _runMusic, _third) = (title, line, new[] { yesLabel, noLabel, thirdLabel }, yes, no, runMusic, third);
             IsPopup = true;
             TransitionOnTime = TimeSpan.FromSeconds(0.3);
             TransitionOffTime = TimeSpan.FromSeconds(0.2);
@@ -35,7 +37,7 @@ namespace Runner_Game.Screens
             _pixel = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
             _button = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/button");
-            if (_runMusic) _music = ScreenManager.Game.Content.Load<Song>("Audio/Music/court_death");
+            if (_runMusic) _music = ScreenManager.Game.Content.Load<Song>(GameplayScreen.CaveSong(CaveZones.Count - 1));  // the door is at the end of the last cave
             _lastMouse = VirtualMouse.GetState();
         }
 
@@ -53,20 +55,25 @@ namespace Runner_Game.Screens
 
         public override void HandleInput(GameTime gameTime, InputState input)
         {
+            int was = _choice;
             if (input.IsNewKeyPress(Keys.Left)) _choice = 0;
             if (input.IsNewKeyPress(Keys.Right)) _choice = 1;
+            if (input.IsNewKeyPress(Keys.Down) && _third != null) _choice = 2;
+            if (input.IsNewKeyPress(Keys.Up) && _choice == 2) _choice = 0;
             var mouse = VirtualMouse.GetState();
             bool click = mouse.LeftButton == ButtonState.Pressed && _lastMouse.LeftButton == ButtonState.Released;
             bool moved = mouse.Position != _lastMouse.Position;
             _lastMouse = mouse;
             bool choose = input.IsNewKeyPress(Keys.Enter);
-            for (int b = 0; b < 2; b++)
+            for (int b = 0; b < ButtonCount; b++)
                 if (Button(b).Contains(mouse.Position)) { if (moved || click) _choice = b; if (click) choose = true; }
+            if (_choice != was) Sfx.UiMove();
             if (!choose) return;
 
+            if (_choice == 0 || _no == null) Sfx.UiPick(); else Sfx.UiBack();
             if (_choice == 1 && _no == null) { ScreenManager.AddScreen(new ShopScreen()); return; }  // stays so you come back to the question
             ExitScreen();
-            (_choice == 0 ? _yes : _no)();
+            (_choice == 0 ? _yes : _choice == 1 ? _no : _third)();
         }
 
         public override void Draw(GameTime gameTime)
@@ -77,12 +84,13 @@ namespace Runner_Game.Screens
             spriteBatch.Draw(_pixel, new Rectangle(0, 0, viewport.Width, viewport.Height), Color.Black * 0.6f * TransitionAlpha);
             DrawCentered(_title, 105, Color.OrangeRed, 0.5f, ScreenManager.BigFont);
             DrawCentered(_line, 180, Color.White, 0.55f, ScreenManager.MenuFont);
-            for (int b = 0; b < 2; b++)
+            for (int b = 0; b < ButtonCount; b++)
             {
                 var rect = Button(b);
-                MenuButton.Draw(spriteBatch, _button, rect, MenuButton.Tint(_choice == b) * TransitionAlpha);
-                var size = ScreenManager.MenuFont.MeasureString(_labels[b]) * 0.5f;
-                Shadowed(_labels[b], new Vector2(rect.Center.X - size.X / 2, rect.Center.Y - size.Y / 2), _choice == b ? Color.Yellow : Color.White, 0.5f, ScreenManager.MenuFont);
+                float scale = b == 2 ? 0.38f : 0.5f;  // the third one is small and quiet
+                MenuButton.Draw(spriteBatch, _button, rect, MenuButton.Tint(_choice == b) * (b == 2 && _choice != 2 ? 0.7f : 1f) * TransitionAlpha);
+                var size = ScreenManager.MenuFont.MeasureString(_labels[b]) * scale;
+                Shadowed(_labels[b], new Vector2(rect.Center.X - size.X / 2, rect.Center.Y - size.Y / 2), _choice == b ? Color.Yellow : b == 2 ? Color.LightGray : Color.White, scale, ScreenManager.MenuFont);
             }
             spriteBatch.End();
         }

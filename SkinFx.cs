@@ -20,12 +20,19 @@ namespace Runner_Game
         private bool _wasOnGround = true;
         private float _ghostTimer;
 
-        public SkinFx() => _skin = Shop.Equipped(Slot.Skin) ?? ItemId.SkinExplorer;
+        private readonly Color[] _fx;     // recolored skins swap the particle colors for these
+
+        public SkinFx()
+        {
+            var worn = Shop.Equipped(Slot.Skin) ?? ItemId.SkinExplorer;
+            _skin = Shop.Get(worn).BaseSkin ?? worn;
+            _fx = Shop.Get(worn).Fx;
+        }
 
         private static float Amount => Settings.SkinFxAmount;
 
         private void Add(Vector2 pos, Vector2 vel, float life, float size, Color color, float gravity = 0, bool bounce = false, bool star = false)
-            => _bits.Add(new Bit { Pos = pos, Vel = vel, Life = life, Size = size, Color = color, Gravity = gravity, Bounce = bounce, Star = star, Spin = RandomHelper.NextFloat(0, 6) });
+            => _bits.Add(new Bit { Pos = pos, Vel = vel, Life = life, Size = size, Color = _fx == null ? color : _fx[RandomHelper.Next(0, _fx.Length - 1)], Gravity = gravity, Bounce = bounce, Star = star, Spin = RandomHelper.NextFloat(0, 6) });
 
         // Spawns this many per second (times the setting), keeps the leftovers so low rates still come out
         private int Rate(float perSecond, float dt)
@@ -104,7 +111,7 @@ namespace Runner_Game
             foreach (var (pos, age) in _ghosts)
             {
                 runner.Position = pos;
-                runner.Color = new Color(40, 40, 60) * (0.5f * (1 - age / 0.25f) * Amount * alpha);
+                runner.Color = (_fx == null ? new Color(40, 40, 60) : _fx[0]) * (0.5f * (1 - age / 0.25f) * Amount * alpha);
                 runner.Draw(new GameTime(), spriteBatch);  // zero time so his animation doesn't skip ahead
             }
             runner.Position = keepPos; runner.Color = keepColor;

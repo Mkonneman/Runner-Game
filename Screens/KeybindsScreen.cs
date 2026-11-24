@@ -60,11 +60,13 @@ namespace Runner_Game.Screens
                 {
                     Controls.Bind((PlayerAction)_selected, pressed);
                     _waiting = false;
+                    Sfx.UiPick();
                 }
                 return;
             }
 
             // Defaults and Back sit side by side, so Left/Right hops between them and Up goes back to the list
+            int was = _selected;
             bool bottom = _selected >= DefaultsRow;
             if (input.IsNewKeyPress(Keys.Up)) _selected = bottom ? Names.Length - 1 : Math.Max(_selected - 1, 0);
             else if (input.IsNewKeyPress(Keys.Down) && !bottom) _selected++;
@@ -82,8 +84,10 @@ namespace Runner_Game.Screens
             if (DefaultsButton.Contains(mouse.Position)) { if (moved) _selected = DefaultsRow; if (click) { _selected = DefaultsRow; choose = true; } }
             if (BackButton.Contains(mouse.Position)) { if (moved) _selected = BackRow; if (click) { _selected = BackRow; choose = true; } }
 
+            if (_selected != was) Sfx.UiMove();
             if (choose)
             {
+                if (_selected < Names.Length || _selected == DefaultsRow) Sfx.UiPick();
                 if (_selected < Names.Length) _waiting = true;
                 else if (_selected == DefaultsRow) Controls.ResetToDefaults();
                 else back = true;
@@ -92,6 +96,7 @@ namespace Runner_Game.Screens
             if (back)
             {
                 SaveSystem.Save();  // binds stick around next time
+                Sfx.UiBack();
                 ExitScreen();
             }
         }

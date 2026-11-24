@@ -57,6 +57,8 @@ namespace Runner_Game.StateManagement
         {
             SpriteBatch = new SpriteBatch(GraphicsDevice);
             Sfx.Load(_content);
+            Banner.Load(_content);
+            Hud.Load(_content);
             MenuFont = _content.Load<SpriteFont>("Fonts/BodyFont");
             TitleFont = _content.Load<SpriteFont>("Fonts/TitleFont");
             BigFont = _content.Load<SpriteFont>("Fonts/BigFont");
@@ -87,6 +89,7 @@ namespace Runner_Game.StateManagement
         {
             // Read in the keyboard and gamepad
             _input.Update();
+            Rumble.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
 
             // Make a copy of the screen list, to avoid confusion if
             // the process of updating a screen adds or removes others

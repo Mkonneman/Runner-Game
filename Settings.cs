@@ -20,12 +20,20 @@ namespace Runner_Game
             }
         }
 
-        // Sound effect volume from 0 to 1 (crash, smash, etc)
-        public static float SfxVolume
-        {
-            get => SoundEffect.MasterVolume;
-            set => SoundEffect.MasterVolume = value;
-        }
+        // Sound effect volume from 0 to 1 (crash, smash, etc), every game sound multiplies by it (PlaySfx / Sfx.Play)
+        public static float SfxVolume { get; set; } = 1f;
+
+        // Menu clicks have their own slider
+        public static float UiVolume { get; set; } = 1f;
+
+        // How hard the screen shakes (0 = none, for anyone it makes queasy)
+        public static float ShakeAmount { get; set; } = 1f;
+
+        // Controller rumble strength (0 = off)
+        public static float Rumble { get; set; } = 1f;
+
+        // Couple frame freeze on big hits
+        public static bool HitStop { get; set; } = true;
 
         // How visible the smash range ring is (0 turns it off)
         public static float SmashRingOpacity { get; set; } = 0.25f;
@@ -38,6 +46,9 @@ namespace Runner_Game
 
         // Hover Boots level 3: true = hold jump to hover, false = double jump (swapped in Gear)
         public static bool AirHover { get; set; }
+
+        // "Equip it now?" popup after buying gear (its Don't show again button turns this off, Settings turns it back on)
+        public static bool EquipPrompt { get; set; } = true;
 
         // Testing: where Play drops you (not saved, always back to the blue cave on launch)
         public static readonly string[] StartNames = { "Blue", "Orange", "Green", "Door", "Hall", "Boss" };

@@ -15,7 +15,7 @@ namespace Runner_Game.Screens
     /// <summary>
     /// The actual game (pushed on top of the title screen)
     /// </summary>
-    public class GameplayScreen : GameScreen
+    public partial class GameplayScreen : GameScreen
     {
         private ContentManager _content;
 
@@ -25,6 +25,11 @@ namespace Runner_Game.Screens
 
         // Audio Handling for the game
         private Song _runnerMusic;
+        private Song _nextSong;           // next cave's song, waiting for the old one to fade out
+        private float _musicFade = 1f;    // dips to 0 while the songs swap
+        // Each cave's song, blue / ember / moss
+        private static readonly string[] CaveSongs = { "court_death", "cave_level_loop", "dripping_dangers" };
+        public static string CaveSong(int zone) => "Audio/Music/" + CaveSongs[Math.Clamp(zone, 0, CaveSongs.Length - 1)];
         private SoundEffect _crashSound;
         private SoundEffect _swingSound;   // whoosh on every hammer swing, hit or miss
         private SoundEffect _laserChargeSound, _laserFireSound, _wallWarningSound;
@@ -41,6 +46,7 @@ namespace Runner_Game.Screens
         private Texture2D _spikeTexture;
         private Texture2D _wallTexture;
         private Texture2D _hammerTexture;
+        private readonly Flail _flail = new();  // Boomerang Flail, out flying after a throw
 
         // Dash cooldown icon (top right)
         private Texture2D _dashIcon;
@@ -82,13 +88,13 @@ namespace Runner_Game.Screens
         private const int SpikePoints = 25;
         // Gemstones, breakable crystals on the floor (and hanging from the roof in the middle cave)
         private readonly List<(float X, bool Top, Color Tint, float Tip)> _gems = new();  // Tip = how far down a hanging one reaches (bigger gem = lower)
-        private static readonly Color[] GemColors = { new(255, 90, 200), new(170, 90, 255), new(70, 230, 120), new(255, 70, 70), new(255, 210, 60), new(80, 220, 255) };  // ruby, emerald, topaz...
         private float _gemTimer = 10f;
         private const int GemPoints = 75;
         private const float GemDamage = 0.35f;
         private const float GemTipMin = 120f, GemTipMax = 185f;  // how far down a hanging gem reaches (his head gets to ~165 at the top of a jump, so the big ones block a full jump)
         private const float GemBuried = 0.3f;              // this much of the gem is up past the top of the screen so the curved rocky top looks stuck in the roof
         private Texture2D _gemTexture, _diamondTexture;
+        private Texture2D[] _gemZones;  // gem spike recolored per cave
         private Gem3D _gem3D;  // the diamond pickups are real 3D gems
         // Diamonds to grab, they come in little patterns
         private readonly List<Vector2> _diamonds = new();
@@ -220,6 +226,7 @@ namespace Runner_Game.Screens
         private const float StarLife = 0.6f;
         private readonly List<(Vector2 Pos, Vector2 Vel, float Age)> _stars = new();  // burst when the door flies open
         private const float DoorFrameTime = 0.08f;        // closed, half open, open, it bursts once the shaking stops
+        private int _bannerZone = -1;                     // which cave name banner showed last
         private float _scrollSpeed = 1f;                  // slows to 0 as the door rolls into the middle
         private float _doorX, _doorStartX, _endTimer;
         private float _noGapFrom = float.MaxValue;        // floor past here has no holes (so the door area is solid)
@@ -251,12 +258,13 @@ namespace Runner_Game.Screens
         /// <summary>
         /// Starts a screen shake. Intensity is the max pixel offset.
         /// </summary>
-        // Rock break kick, the whole frame shoves 22px and tilts 1 degree toward the hit, then settles
+        // Break kick, the whole frame shoves 22px and tilts 1.5 degrees toward the hit, then settles (rocks get a smaller one than walls)
         private const float KickTime = 0.35f;
-        private float _kickLeft;
+        private float _kickLeft, _kickStrength = 1f;
         private Vector2 _kickDir;
-        private void Kick(Vector2 toward)
+        private void Kick(Vector2 toward, float strength)
         {
+            _kickStrength = strength;
             var dir = toward - new Vector2(_runner.Bounds.X + _runner.Bounds.Width / 2, _runner.Bounds.Y + _runner.Bounds.Height / 2);
             _kickDir = dir == Vector2.Zero ? Vector2.UnitX : Vector2.Normalize(dir);
             _kickLeft = KickTime;
@@ -266,13 +274,14 @@ namespace Runner_Game.Screens
             if (_kickLeft <= 0) return Matrix.Identity;
             float e = MathF.Pow(_kickLeft / KickTime, 3);  // full shove right away, eases back to rest
             var center = new Vector3(viewport.Width / 2f, viewport.Height / 2f, 0);
+            e *= _kickStrength * Settings.ShakeAmount;
             return Matrix.CreateTranslation(-center) * Matrix.CreateRotationZ(MathHelper.ToRadians(1.5f) * MathF.Sign(_kickDir.X) * e)
                  * Matrix.CreateTranslation(center + new Vector3(_kickDir * 22f * e, 0));
         }
 
         private void Shake(float intensity, float duration)
         {
-            _shakeIntensity = intensity;
+            _shakeIntensity = intensity * Settings.ShakeAmount;
             _shakeDuration = duration;
             _shakeTime = duration;
         }
@@ -299,7 +308,6 @@ namespace Runner_Game.Screens
             _caveLayers = Array.ConvertAll(CaveLayerInfo, layer => _content.Load<Texture2D>(layer.Name));
 
             // Loads the music and sounds for the game
-            _runnerMusic = _content.Load<Song>("Audio/Music/court_death");
             _crashSound = _content.Load<SoundEffect>("Audio/Sfx/crash");
             _swingSound = _content.Load<SoundEffect>("Audio/Sfx/swing");
             _notReadySound = _content.Load<SoundEffect>("Audio/Sfx/not_ready");
@@ -331,9 +339,11 @@ namespace Runner_Game.Screens
             _wallTexture = _content.Load<Texture2D>("Images/Gameplay/wall_stone");
             _hammerTexture = _content.Load<Texture2D>("Images/Gameplay/hammer");
             _pickaxeTexture = _content.Load<Texture2D>("Images/Gameplay/pickaxe");
+            _flail.Load(_content);
             _turretTexture = _content.Load<Texture2D>("Images/Gameplay/turret");
             _doorTexture = _content.Load<Texture2D>("Images/Gameplay/door");
             _rocketTexture = _content.Load<Texture2D>("Images/Gameplay/rocket");
+            LoadHazards();  // icicles, vines, mushrooms (CaveHazards.cs)
             _beamTexture = _content.Load<Texture2D>("Images/Gameplay/beam");
             _lanternTexture = _content.Load<Texture2D>("Images/Gameplay/lantern");
             _glowTexture = _content.Load<Texture2D>("Images/Particles/particle");
@@ -350,6 +360,7 @@ namespace Runner_Game.Screens
             _floorZones = CaveZones.Recolor(_floor.Tileset);
             _wallZones = CaveZones.Recolor(_wallTexture);
             _spikeZones = CaveZones.Recolor(_spikeTexture, new Color(150, 200, 255));
+            _gemZones = CaveZones.Recolor(_gemTexture, new Color(150, 200, 255));  // same blue base so it shifts the same way
 
             // Fresh player for each run
             _runner = new();
@@ -396,6 +407,7 @@ namespace Runner_Game.Screens
             // Start the music from the beginning
             MediaPlayer.IsRepeating = true;
             MediaPlayer.Volume = Settings.MusicVolume;  // the title may still be fading in
+            _runnerMusic = _content.Load<Song>(CaveSong(Math.Min((int)(_scrollTime / CaveZones.ZoneLength), CaveZones.Count - 1)));  // a test start in a later cave gets that cave's song
             MediaPlayer.Play(_runnerMusic);
         }
 
@@ -413,6 +425,21 @@ namespace Runner_Game.Screens
 
             // Only run the game while this screen is on top and the run is going
             if (!IsActive || _isGameOver) return;
+
+            // Nothing moves while the circle is still opening, during the 3 2 1, or for a hit stop
+            float frame = (float)gameTime.ElapsedGameTime.TotalSeconds;
+            Iris.Center = new Vector2(_runner.Bounds.X + _runner.Bounds.Width / 2, _runner.Bounds.Y + _runner.Bounds.Height / 2);
+            Banner.Update(frame);
+            if (RunStats.CountingDown(frame) || HitStop.Frozen(frame)) return;
+            RunStats.Update(frame, _score);
+            int zone = Math.Min((int)(_scrollTime / CaveZones.ZoneLength), CaveZones.Count - 1);
+            if (zone != _bannerZone)
+            {
+                _bannerZone = zone;
+                Banner.Show(zone, MathF.Max(0, Iris.Left - 0.2f));  // new cave, drop its name in (the first one waits for the circle to open)
+                var song = _content.Load<Song>(CaveSong(zone));
+                if (song != _runnerMusic) _nextSong = song;  // new cave, new song
+            }
 
             // Time Slow halves the world (rocks, spikes, lasers, scrolling) but he still moves full speed
             float realDt = (float)gameTime.ElapsedGameTime.TotalSeconds;
@@ -457,9 +484,13 @@ namespace Runner_Game.Screens
                 _pluses[k] = (_pluses[k].Pos, _pluses[k].Age + realDt);
                 if (_pluses[k].Age > PlusLife) _pluses.RemoveAt(k);
             }
-            MediaPlayer.Volume = Settings.MusicVolume * (_slowLeft > 0 ? 0.35f : 1f);  // music goes quiet and far away during Time Slow
+            // Changing caves fades the old song out, starts the new one, fades it back in
+            if (_nextSong != null) { if ((_musicFade -= realDt / 0.8f) <= 0) { _runnerMusic = _nextSong; _nextSong = null; MediaPlayer.Play(_runnerMusic); } }
+            else _musicFade = MathF.Min(1, _musicFade + realDt / 0.8f);
+            MediaPlayer.Volume = Settings.MusicVolume * (_slowLeft > 0 ? 0.35f : 1f) * MathF.Max(0, _musicFade);  // music goes quiet and far away during Time Slow
 
             _scrollTime += dt * _scrollSpeed;
+            RunStats.Distance += dt * _scrollSpeed * SpikeSpeed;
             UpdateEnding(dt);
             if (_isGameOver) return;
             if (_scrollTime >= CaveZones.ZoneLength) Achievements.Unlock("orange");
@@ -522,13 +553,14 @@ namespace Runner_Game.Screens
                 float x = ScreenManager.GraphicsDevice.Viewport.Width + (isWall ? WallWarningDistance : SpikeSource.Width);
 
                 // Never put one over a gap (looks weird), just try again a moment later once the gap has moved past
-                if (OverGap(x, isWall ? _wallTexture.Width : SpikeSource.Width) || _gems.Exists(g => MathF.Abs(g.X - x) < 120 + (isWall ? _wallTexture.Width / 2f : 0))
-                    || _diamonds.Exists(d => MathF.Abs(d.X - x) < 60 + (isWall ? _wallTexture.Width / 2f : 0))) _spikeTimer = 0.2f;  // not on holes, gems or diamonds
+                float half = (isWall ? _wallTexture.Width : SpikeSource.Width) / 2f;
+                if (!Fits(x - half, x + half, isWall ? Lane.Wall : Lane.Floor, isWall ? 200 : 60) || _diamonds.Exists(d => MathF.Abs(d.X - x) < 60 + half)) _spikeTimer = 0.2f;  // room to get past it (walls stay well off holes), not on diamonds
                 else
                 {
                     _spikes.Add((x, isWall));
+                    Spawned();
                     _seenWall |= isWall;
-                    if (isWall) _wallWarningSound.Play(0.8f, 0f, 0.6f);  // beep beep from the right side, same time the ! shows
+                    if (isWall) { _wallWarningSound.PlaySfx(0.8f, 0f, 0.6f); Rumble.Warning(); }  // beep beep from the right side, same time the ! shows
                     _spikeTimer = RandomHelper.NextFloat(MathHelper.Lerp(6f, 3f, Difficulty), MathHelper.Lerp(9f, 5f, Difficulty));
                 }
             }
@@ -553,7 +585,7 @@ namespace Runner_Game.Screens
                     if (_fuel >= _fuelMax) _overheated = false;
                     _drillProgress = MathF.Max(0, _drillProgress - realDt * 1.5f);  // cracks heal if you let go
                 }
-                if (drilling && _drillLoop.State != SoundState.Playing) _drillLoop.Play();
+                if (drilling && _drillLoop.State != SoundState.Playing) { _drillLoop.Volume = Settings.SfxVolume; _drillLoop.Play(); }
                 if (!drilling) _drillLoop.Stop();
                 smash = false;
             }
@@ -562,19 +594,31 @@ namespace Runner_Game.Screens
             {
                 _smashCooldownLeft = SmashCooldown;
                 _smashedLastFrame = true;
+                if (_weapon == ItemId.BoomerangFlail)
+                {
+                    _flail.Throw(1);  // out and back, smashes on the way
+                    _swingSound.PlaySfx(0.8f, 0.3f, 0f);
+                    Rumble.Swing();
+                }
+                else
                 {
                     _swipeLeft = SwipeLength;
                     _swipeReach = SmashReach();
-                    _swingSound.Play(0.8f, RandomHelper.NextFloat(-0.15f, 0.15f), 0f);  // little pitch change so it doesnt get repetitive
+                    _swingSound.PlaySfx(0.8f, RandomHelper.NextFloat(-0.15f, 0.15f), 0f);  // little pitch change so it doesnt get repetitive
+                    Rumble.Swing();
                     SmashInReach();
                     if (_weapon == ItemId.QuakeHammer && _runner.IsOnGround)  // shockwave only when his feet are planted
                     {
                         _quakes.Add(_runner.Bounds.Right);
-                        _shockwaveSound.Play(0.8f, 0f, 0f);
+                        _shockwaveSound.PlaySfx(0.8f, 0f, 0f);
                         Shake(5f, 0.3f);
+                        Rumble.Pulse(0.6f, 0.2f, 0.25f);
                     }
                 }
             }
+
+            // Boomerang Flail out flying, breaks whatever it passes
+            if (_flail.Out) { _flail.Update(realDt, _runner.Hand); FlailHits(_flail.Head); }
 
             for (int i = _spikes.Count - 1; i >= 0; i--)
             {
@@ -602,6 +646,8 @@ namespace Runner_Game.Screens
             UpdateGems(dt);
             if (_isGameOver) return;
             UpdateDiamonds(dt);
+            UpdateHazards(dt);
+            if (_isGameOver) return;
 
             int screenHeight = ScreenManager.GraphicsDevice.Viewport.Height;
 
@@ -649,7 +695,7 @@ namespace Runner_Game.Screens
             if (_laserTimer <= 0)
             {
                 _lasers.Add((_runner.Position.X, 0, false));
-                _laserChargeSound.Play(0.6f, 0f, 0f);  // whine climbs for the whole warning
+                _laserChargeSound.PlaySfx(0.6f, 0f, 0f);  // whine climbs for the whole warning
                 _laserTimer = RandomHelper.NextFloat(MathHelper.Lerp(14f, 7f, Difficulty), MathHelper.Lerp(20f, 11f, Difficulty));  // rare at first, more often later
                 _laserTimer *= new[] { 2.5f, 1.6f, 1f }[Math.Min(2, CaveZones.At(_scrollTime).From)];  // rare in blue, more in orange, full rate in green
                 if (_armor == ItemId.MirrorHelm) _laserTimer *= 0.55f;
@@ -658,7 +704,7 @@ namespace Runner_Game.Screens
             for (int i = _lasers.Count - 1; i >= 0; i--)
             {
                 var (x, time, bounced) = _lasers[i];
-                if (time < LaserWarn && time + dt >= LaserWarn) _laserFireSound.Play(0.8f, 0f, 0f);  // ZAP right when it fires
+                if (time < LaserWarn && time + dt >= LaserWarn) { _laserFireSound.PlaySfx(0.8f, 0f, 0f); Rumble.Laser(); }  // ZAP right when it fires
                 time += dt;
 
                 // While warning it slides toward him, then locks in place when it fires
@@ -735,22 +781,22 @@ namespace Runner_Game.Screens
                     Sfx.Play("heal");
                     _healPulse = 0.5f;
                     for (int k = 0; k < 14; k++) _hoverDust.PlaceDust(_runner.Position + new Vector2(RandomHelper.NextFloat(-25, 25), RandomHelper.NextFloat(-110, -10)), new Color(120, 255, 140));
-                    _swingSound.Play(0.5f, 0.5f, 0f);
+                    _swingSound.PlaySfx(0.5f, 0.5f, 0f);
                     break;
                 case ItemId.BubbleShield:
                     _bubbleLeft = Shop.Value(ItemId.BubbleShield);
-                    _bubbleSound.Play(0.7f, 0f, 0f);
+                    _bubbleSound.PlaySfx(0.7f, 0f, 0f);
                     break;
                 case ItemId.TimeSlow:
                     _slowLeft = Shop.Value(ItemId.TimeSlow);
-                    _timeSlowSound.Play(0.8f, 0f, 0f);
+                    _timeSlowSound.PlaySfx(0.8f, 0f, 0f);
                     break;
                 case ItemId.RocketLauncher:
                     // Fwoosh, a rocket out of the launcher on his shoulder flies right till it hits something
                     _rockets.Add((_runner.Muzzle, 0f));
                     Sfx.Play("rocket");
                     _runner.ShootTime = Runner.ShootPose;  // pulls the launcher out just for the shot
-                    _swingSound.Play(0.9f, -0.6f, 0f);
+                    _swingSound.PlaySfx(0.9f, -0.6f, 0f);
                     break;
             }
             _abilityCooldownLeft = _abilityCooldown;
@@ -766,7 +812,7 @@ namespace Runner_Game.Screens
             _safeTime = 0.6f;
             _crash.PlaceCrash(_runner.Position - new Vector2(0, 60), new Color(120, 220, 255));
             Shake(5f, 0.2f);
-            _crashSound.Play(0.6f, 0.4f, 0f);
+            _crashSound.PlaySfx(0.6f, 0.4f, 0f);
             return true;
         }
 
@@ -775,10 +821,11 @@ namespace Runner_Game.Screens
         {
             var spike = _spikes[i];
             _crash.PlaceCrash(new Vector2(spike.X, spike.IsWall ? SpikeBottom - 100 : SpikeBottom - 40), new Color(70, 96, 170));
-            _crashSound.Play();
+            _crashSound.PlaySfx();
             Shake(6f, 0.25f);
-            _score += spike.IsWall ? WallPoints : SpikePoints;
-            if (spike.IsWall) Achievements.Add("walls");
+            _score += Points(spike.IsWall ? WallPoints : SpikePoints);
+            if (spike.IsWall) { Achievements.Add("walls"); RunStats.Walls++; Rumble.WallBreak(); Kick(new Vector2(spike.X, SpikeBottom - 100), 1f); }
+            else Rumble.RockBreak();
             _spikes.RemoveAt(i);
         }
 
@@ -786,10 +833,12 @@ namespace Runner_Game.Screens
         {
             _crash.PlaceCrash(_bolders[b].Bounds.Center, _bolders[b].Tint);
             Achievements.Add("rocks");
-            Kick(_bolders[b].Bounds.Center);
-            _crashSound.Play();
+            Kick(_bolders[b].Bounds.Center, 0.45f);
+            _crashSound.PlaySfx();
             Shake(6f, 0.25f);
-            _score += BoulderPoints;
+            _score += Points(BoulderPoints);
+            RunStats.Rocks++;
+            Rumble.RockBreak();
             _bolders.RemoveAt(b);
         }
 
@@ -798,6 +847,7 @@ namespace Runner_Game.Screens
         {
             float slope = MathF.Tan(angle);
             float Y(float x) => from.Y + slope * (x - from.X);  // beam height at that x
+            BreakHazardsAlong(from, angle);
             for (int b = _bolders.Count - 1; b >= 0; b--)
             {
                 var rock = _bolders[b].Bounds;
@@ -838,6 +888,7 @@ namespace Runner_Game.Screens
                 }
                 for (int g = _gems.Count - 1; g >= 0; g--)
                     if (!_gems[g].Top && MathF.Abs(_gems[g].X - _quakes[q]) < 20) BreakGem(g);
+                QuakeHazards(_quakes[q]);
                 if (RandomHelper.Next(0, 1) == 0) _rockDust.PlaceDust(new Vector2(_quakes[q], FloorY), new Color(150, 170, 220));
                 if (_quakes[q] > screenWidth + 40) _quakes.RemoveAt(q);
             }
@@ -862,6 +913,7 @@ namespace Runner_Game.Screens
                 if (wall >= 0) { BreakObstacle(wall); hit = true; }
                 int gem = _gems.FindIndex(g => GemBounds(g).CollidesWith(new BoundingRectangle(rocket.X - 4, rocket.Y - 4, 8, 8)));
                 if (!hit && gem >= 0) { BreakGem(gem); hit = true; }
+                if (!hit) hit = RocketHitsHazard(rocket);
                 for (int b = _bolders.Count - 1; b >= 0 && !hit; b--)
                     if (Vector2.Distance(_bolders[b].Bounds.Center, rocket) < _bolders[b].Bounds.Radius + 8) { BreakRock(b); hit = true; }
                 if (hit)
@@ -885,14 +937,18 @@ namespace Runner_Game.Screens
         private void SmashInReach()
         {
             float runnerRight = _runner.Bounds.Right;
+            SmashHazards();
             int wall = _spikes.FindIndex(s => s.IsWall && SpikeBounds(s).Left - runnerRight < SmashReach() && SpikeBounds(s).Right > _runner.Bounds.Left);
             if (wall >= 0)
             {
                 _crash.PlaceCrash(new Vector2(_spikes[wall].X, SpikeBottom - 100), new Color(70, 96, 170));
                 Shake(6f, 0.25f);
-                _crashSound.Play();
+                _crashSound.PlaySfx();
                 _spikes.RemoveAt(wall);
                 _score += Points(WallPoints);
+                RunStats.Walls++;
+                Rumble.WallBreak();
+                Kick(new Vector2(runnerRight + 60, SpikeBottom - 100), 1f);  // wall is just ahead of him
             }
 
             // The pickaxe chips spikes out of the floor too
@@ -918,11 +974,27 @@ namespace Runner_Game.Screens
                 {
                     _crash.PlaceCrash(rock.Center, _bolders[b].Tint);
                     Shake(6f, 0.25f);
-                    _crashSound.Play();
+                    _crashSound.PlaySfx();
                     _bolders.RemoveAt(b);
                     _score += Points(BoulderPoints);
+                    RunStats.Rocks++;
+                    Rumble.RockBreak();
+                    Kick(rock.Center, 0.45f);
                 }
             }
+        }
+
+        // Boomerang Flail breaks everything it touches and keeps going (rockets stop at the first thing)
+        private void FlailHits(Vector2 head)
+        {
+            var box = new BoundingRectangle(head.X - 18, head.Y - 18, 36, 36);
+            for (int i = _spikes.Count - 1; i >= 0; i--)
+                if (_spikes[i].IsWall && SpikeBounds(_spikes[i]).CollidesWith(box)) BreakObstacle(i);
+            for (int g = _gems.Count - 1; g >= 0; g--)
+                if (GemBounds(_gems[g]).CollidesWith(box)) BreakGem(g);
+            for (int b = _bolders.Count - 1; b >= 0; b--)
+                if (Vector2.Distance(_bolders[b].Bounds.Center, head) < _bolders[b].Bounds.Radius + 18 || (Flail.ChainCuts && _flail.ChainDistance(_bolders[b].Bounds.Center) < _bolders[b].Bounds.Radius)) BreakRock(b);  // maxed, the chain cuts them too
+            while (RocketHitsHazard(head)) { }  // icicles, mushrooms and vine tendrils, one at a time
         }
 
         // A rock can be smashed when its hit circle comes within reach of his head
@@ -934,9 +1006,6 @@ namespace Runner_Game.Screens
         private BoundingRectangle GemBounds((float X, bool Top, Color Tint, float Tip) gem) => gem.Top
             ? new BoundingRectangle(gem.X - gem.Tip * 0.1f, 0, gem.Tip * 0.2f, gem.Tip)  // thin middle, the whole length from the roof to the tip
             : new BoundingRectangle(gem.X - 20, SpikeBottom - 90, 40, 90);  // the middle of the rock pile, a real jump to clear
-
-        // Anything already near this X that a gem would end up inside (walls are wide so they get extra room)
-        private bool TooCloseToObstacle(float x) => _spikes.Exists(s => MathF.Abs(s.X - x) < 120 + (s.IsWall ? _wallTexture.Width / 2f : 0));
 
         // Little sparkles so the power ups pop while they're running
         private void GearSparkles()
@@ -963,7 +1032,7 @@ namespace Runner_Game.Screens
             if (_endPhase == 0) return;
 
             // Nothing new shows up from here on
-            _spawnTimer = 0; _spikeTimer = 99; _laserTimer = 99; _gemTimer = 99; _diamondTimer = 99;
+            _spawnTimer = 0; _spikeTimer = 99; _laserTimer = 99; _gemTimer = 99; _diamondTimer = 99; _iceTimer = 99; _vineTimer = 99; _mushTimer = 99;
 
             switch (_endPhase)
             {
@@ -987,7 +1056,7 @@ namespace Runner_Game.Screens
                     if (MathF.Abs(_runner.Position.X - _doorX) <= 3)
                     {
                         _endPhase = 4;
-                        ScreenManager.AddScreen(new PromptScreen("Something big waits inside...", "Are you ready, or shop first?", "Enter", "Shop first", () => { _endPhase = 5; _endTimer = 0; _shockwaveSound.Play(0.6f, -0.6f, 0f); }, runMusic: true));  // low rumble once you say go
+                        ScreenManager.AddScreen(new PromptScreen("Something big waits inside...", "Are you ready, or shop first?", "Enter", "Shop first", () => { _endPhase = 5; _endTimer = 0; _shockwaveSound.PlaySfx(0.6f, -0.6f, 0f); }, runMusic: true));  // low rumble once you say go
                     }
                     break;
                 case 5:
@@ -997,7 +1066,7 @@ namespace Runner_Game.Screens
                     if (RandomHelper.Next(0, 3) == 0) _rockDust.PlaceDust(new Vector2(_doorX + RandomHelper.NextFloat(-120, 120), SpikeBottom - RandomHelper.NextFloat(0, 180)), new Color(120, 110, 100));
                     if (_endTimer > RumbleTime)
                     {
-                        _endPhase = 6; _endTimer = 0; Shake(12f, 0.35f); _crashSound.Play(0.9f, -0.4f, 0f);  // BOOM it flies open
+                        _endPhase = 6; _endTimer = 0; Shake(12f, 0.35f); _crashSound.PlaySfx(0.9f, -0.4f, 0f);  // BOOM it flies open
                         var middle = new Vector2(_doorX, FloorY - _doorTexture.Height / 2f);
                         for (int k = 0; k < 14; k++)
                         {
@@ -1032,10 +1101,11 @@ namespace Runner_Game.Screens
         {
             var box = GemBounds(_gems[g]);
             _crash.PlaceCrash(new Vector2(_gems[g].X, box.Top + box.Height / 2), _gems[g].Tint);
-            _crashSound.Play(0.8f, 0.5f, 0f);  // higher pitch, sounds glassy
+            _crashSound.PlaySfx(0.8f, 0.5f, 0f);  // higher pitch, sounds glassy
             Sfx.Play("gem", 0.2f);
             Shake(4f, 0.2f);
-            _score += GemPoints;
+            _score += Points(GemPoints);
+            RunStats.Gems++;
             _gems.RemoveAt(g);
         }
 
@@ -1050,12 +1120,14 @@ namespace Runner_Game.Screens
             {
                 // Floor gems come from the spike slot now, this timer only hangs gems from the roof in the middle cave
                 bool top = true;
-                float x = width + 40;
+                float tip = RandomHelper.NextFloat(GemTipMin, GemTipMax);  // random size, never huge
+                float x = width + GemHalf(tip) + 10;  // starts just off screen
                 if (CaveZones.At(_scrollTime).From < 1) _gemTimer = 1f;  // orange and green caves only
-                else if (TooCloseToObstacle(x)) _gemTimer = 0.3f;  // no stacking on spikes or walls
+                else if (!Fits(x - GemHalf(tip), x + GemHalf(tip), GemLane(tip), 40)) _gemTimer = 0.3f;  // not over holes, nothing it would overlap or trap him with
                 else
                 {
-                    _gems.Add((x, top, GemColors[RandomHelper.Next(0, GemColors.Length - 1)], RandomHelper.NextFloat(GemTipMin, GemTipMax)));  // random size, never huge
+                    _gems.Add((x, top, CaveZones.BarColors[CaveZones.At(_scrollTime).From], tip));  // shards in the cave color
+                    Spawned();
                     _gemTimer = RandomHelper.NextFloat(MathHelper.Lerp(5f, 3f, Difficulty), MathHelper.Lerp(8f, 5f, Difficulty));  // orange cave is the hard one, these come often
                 }
             }
@@ -1066,7 +1138,7 @@ namespace Runner_Game.Screens
                 if (_safeTime <= 0 && _hurtTime <= 0 && _runner.Bounds.CollidesWith(GemBounds(_gems[g])))
                 {
                     if (Blocked()) { BreakGem(g); continue; }
-                    Hurt(GemDamage, new Color(255, 90, 200), DeathCause.Spike);
+                    Hurt(GemDamage, _gems[g].Tint, DeathCause.Crystal);
                     if (_isGameOver || _safeTime > 0) return;
                 }
                 if (_gems[g].X < -60) _gems.RemoveAt(g);
@@ -1174,6 +1246,7 @@ namespace Runner_Game.Screens
         /// </summary>
         private void UpdateDrill(float dt)
         {
+            DrillHazards();
             var target = DrillTarget();
             if (target != _drillLast) _drillProgress = 0;  // moved onto something new, start over
             _drillLast = target;
@@ -1268,7 +1341,7 @@ namespace Runner_Game.Screens
         private void NotReady(Texture2D icon)
         {
             if (icon != null && _iconRects.TryGetValue(icon, out var rect)) MenuButton.Trigger(rect);
-            _notReadySound.Play(0.6f, 0f, 0f);
+            _notReadySound.PlaySfx(0.6f, 0f, 0f);
         }
 
         private readonly Dictionary<float, float> _lastCooldown = new();  // icon x -> cooldown last frame, a jump up means it just got used
@@ -1333,6 +1406,8 @@ namespace Runner_Game.Screens
         {
             if (_hurtTime > 0) return;
             Sfx.Play("hurt", 0.7f);
+            RunStats.Hurt();          // combo's gone
+            HitStop.Freeze(0.07f);
             _dmgFrom = _dmgFill > 0 ? DamageGhost() : _healFill > 0 ? ShownHealth() : _health;
             _healFill = 0;  // a hit cancels a heal still filling
             _health -= damage;
@@ -1346,17 +1421,18 @@ namespace Runner_Game.Screens
             _flashTime = 0.4f;
             _flashStrength = MathHelper.Clamp(damage * 2, 0.3f, 1f);
             Shake(4f + 8f * damage, 0.3f);
-            _crashSound.Play();
+            _crashSound.PlaySfx();
         }
 
-        // Points per smash (the Lucky Charm boosts gems instead now)
-        private static int Points(int points) => points;
+        // Points per smash, the combo multiplies them (the Lucky Charm boosts gems instead)
+        private static int Points(int points) => RunStats.Points(points);
 
         /// <summary>
         /// Ends the run with a burst in the color of what hit him, shake, crash sound and music off
         /// </summary>
         private void Crash(Color color, DeathCause cause)
         {
+            cause = Blame(cause);  // vines and mushrooms take the credit
             // Phoenix Heart, back up once with some health and a moment to get clear
             if (_armor == ItemId.PhoenixHeart && !_revived)
             {
@@ -1368,7 +1444,7 @@ namespace Runner_Game.Screens
                 _runner.Revive();
                 _crash.PlaceCrash(_runner.Position - new Vector2(0, 60), new Color(255, 220, 90));
                 Shake(8f, 0.4f);
-                _reviveSound.Play(0.8f, 0f, 0f);  // aaaaah
+                _reviveSound.PlaySfx(0.8f, 0f, 0f);  // aaaaah
                 _reviveGlow = 2f;
                 _spikes.RemoveAll(s => _runner.Bounds.CollidesWith(SpikeBounds(s)));  // dont come back inside a wall lol
                 return;
@@ -1378,18 +1454,26 @@ namespace Runner_Game.Screens
             _dash.IsEmitting = false; // Stop the trail when he's hit
             Shake(12f, 0.5f);         // Big shake on crash
             _isGameOver = true;       // End the game
+            Rumble.Death();
             _drillLoop.Stop();
-            _crashSound.Play();       // Play Crash sound
+            _crashSound.PlaySfx();       // Play Crash sound
             MediaPlayer.Stop();       // Stop the music
             _health = 0;              // walls kill outright
             _flashTime = 1f;          // stays red while frozen
             _flashStrength = 1f;
-            Shop.AddGems(Shop.GemsFromScore(_score));
+            Shop.AddGems(RunStats.GemsFor(_score));
             ScreenManager.AddScreen(new GameOverScreen(this, _score, cause));
         }
 
         public override void HandleInput(GameTime gameTime, InputState input)
         {
+            // Esc / P / Start pauses
+            if (!_isGameOver && (input.IsNewKeyPress(Keys.Escape) || input.IsNewKeyPress(Keys.P) || input.IsNewButtonPress(Buttons.Start)))
+            {
+                _drillLoop.Stop();
+                ScreenManager.AddScreen(new PauseScreen(this));
+                return;
+            }
 
             // Smash (Update uses it)
             if (Controls.IsPressed(PlayerAction.Smash)) _smashPressed = true;
@@ -1486,11 +1570,15 @@ namespace Runner_Game.Screens
                 {
                     // Scaled evenly (no stretching), hangs from the roof down to its tip so bigger ones reach lower
                     int h = (int)(gem.Tip / (1 - GemBuried)), w = h * _gemTexture.Width / _gemTexture.Height;
-                    spriteBatch.Draw(_gemTexture, new Rectangle((int)gem.X - w / 2, (int)gem.Tip - h, w, h), null, Color.White * TransitionAlpha, 0f, Vector2.Zero, SpriteEffects.FlipVertically, 0f);
+                    foreach (var (zone, weight) in zonePasses)
+                        spriteBatch.Draw(_gemZones[zone], new Rectangle((int)gem.X - w / 2, (int)gem.Tip - h, w, h), null, Color.White * weight * TransitionAlpha, 0f, Vector2.Zero, SpriteEffects.FlipVertically, 0f);
                 }
                 else
-                    spriteBatch.Draw(_gemTexture, new Rectangle((int)gem.X - _gemTexture.Width / 2, (int)SpikeBottom - _gemTexture.Height + 4, _gemTexture.Width, _gemTexture.Height), Color.White * TransitionAlpha);
+                    foreach (var (zone, weight) in zonePasses)
+                        spriteBatch.Draw(_gemZones[zone], new Rectangle((int)gem.X - _gemTexture.Width / 2, (int)SpikeBottom - _gemTexture.Height + 4, _gemTexture.Width, _gemTexture.Height), Color.White * weight * TransitionAlpha);
             }
+            DrawHazards();
+
             // Diamonds are 3D gems that spin and bob, SpriteBatch has to stop while the 3D draws then pick back up
             if (_diamonds.Count > 0)
             {
@@ -1526,9 +1614,10 @@ namespace Runner_Game.Screens
 
             // Smash swipe in front of him
             if (_swipeLeft > 0) DrawSwipe();
+            _flail.Draw(spriteBatch, _pixel, TransitionAlpha);
 
             // Smash range ring around his head (bright when ready), rocks inside it get a yellow ring
-            if (!_isGameOver && SmashRingOpacity > 0)
+            if (!_isGameOver && SmashRingOpacity > 0 && _weapon != ItemId.BoomerangFlail)  // the flail flies way past any ring
             {
                 var head = SmashPoint();
                 // Sits at 15% while recharging, then slowly fades up to full once it's ready (all scaled by the ring setting)
@@ -1568,6 +1657,7 @@ namespace Runner_Game.Screens
             if (_flashTime > 0 && _hurtTime <= 0) _runner.Color = Color.Lerp(PlayerTint, Color.Red, _flashStrength) * TransitionAlpha;
             else if (_hurtTime > 0) _runner.Color = Color.Lerp(PlayerTint, Color.Red, hurtRed) * ((int)(_hurtTime * 10) % 2 == 0 ? 0.35f : 1f) * TransitionAlpha;  // red fading back = damage, the blink = can't be hit yet
             else if (_reviveGlow > 0) _runner.Color = ((int)(_reviveGlow * 8) % 2 == 0 ? new Color(255, 230, 140) : PlayerTint * 0.5f) * TransitionAlpha;  // gold blink after coming back
+            else if (_runner.Held > 0) _runner.Color = Color.Lerp(PlayerTint, VineColor, 0.45f) * TransitionAlpha;  // tangled in a vine
             else if (_safeTime > 0) _runner.Color = PlayerTint * 0.5f * TransitionAlpha;  // See through while untouchable so you know its working
             else if (_mirrorFlash > 0) _runner.Color = Color.Lerp(PlayerTint, new Color(80, 200, 255), _mirrorFlash / _mirrorTime) * TransitionAlpha;  // laser blue soaked up by the Mirror Helm, fades as the beam lets go
             else _runner.Color = PlayerTint * TransitionAlpha;
@@ -1658,6 +1748,8 @@ namespace Runner_Game.Screens
             foreach (var (rocket, angle) in _rockets)
                 spriteBatch.Draw(_glowTexture, rocket - new Vector2(MathF.Cos(angle), MathF.Sin(angle)) * 26, null, new Color(255, 150, 40) * TransitionAlpha, 0f, new Vector2(8), 1.6f, SpriteEffects.None, 0f);
 
+            DrawHazardGlow();
+
             // Mirror Helm bounce, a red beam shooting right from his helmet
             if (_mirrorFlash > 0)
             {
@@ -1720,30 +1812,30 @@ namespace Runner_Game.Screens
                 spriteBatch.Draw(_pixel, new Rectangle(bar.X - 1, bar.Y - 1, bar.Width + 2, bar.Height + 2), Color.Black * 0.7f * TransitionAlpha);
                 spriteBatch.Draw(_pixel, new Rectangle(bar.X, bar.Y, (int)(bar.Width * _fuel / _fuelMax), bar.Height), (_overheated ? Color.OrangeRed : Color.Gold) * TransitionAlpha);
             }
-            // Biome progress bar at the top, one chunk per cave color, fills as he runs deeper
+            // Cave progress bar at the top, one rounded chunk per cave color, a glow rides the front of the fill
             {
-                const int barWidth = 300, barHeight = 10;
+                const int barWidth = 270, barHeight = 10, gap = 6;
                 int barX = viewport.Width / 2 - barWidth / 2, barY = 18;
-                int chunk = barWidth / CaveZones.Count;
-                float depth = (_scrollTime) / CaveZones.ZoneLength;  // 1.5 = halfway through the 2nd cave
-                int current = Math.Min((int)depth, CaveZones.Count - 1);
-                spriteBatch.Draw(_pixel, new Rectangle(barX - 2, barY - 2, barWidth + 4, barHeight + 4), Color.Black * 0.7f * TransitionAlpha);
+                int chunk = (barWidth - gap * (CaveZones.Count - 1)) / CaveZones.Count;
+                float depth = _scrollTime / CaveZones.ZoneLength;  // 1.5 = halfway through the 2nd cave
                 for (int z = 0; z < CaveZones.Count; z++)
                 {
-                    float fill = MathHelper.Clamp(depth - z, 0f, 1f);
-                    var color = CaveZones.BarColors[z];
-                    spriteBatch.Draw(_pixel, new Rectangle(barX + z * chunk + 1, barY, chunk - 2, barHeight), color * 0.25f * TransitionAlpha);
-                    spriteBatch.Draw(_pixel, new Rectangle(barX + z * chunk + 1, barY, (int)((chunk - 2) * fill), barHeight), color * TransitionAlpha);
+                    Hud.Bar(spriteBatch, new Rectangle(barX + z * (chunk + gap), barY, chunk, barHeight), depth - z, CaveZones.BarColors[z], _scrollTime, TransitionAlpha);
                 }
-                string name = CaveZones.Names[current];
-                var size = ScreenManager.MenuFont.MeasureString(name) * 0.35f;
-                spriteBatch.DrawString(ScreenManager.MenuFont, name, new Vector2(viewport.Width / 2 - size.X / 2, barY + barHeight + 4), CaveZones.BarColors[current] * TransitionAlpha, 0f, Vector2.Zero, 0.35f, SpriteEffects.None, 0f);
             }
-            spriteBatch.DrawString(ScreenManager.BigFont, $"Score: {_score}", new Vector2(25, 20), Color.Yellow * TransitionAlpha, 0f, Vector2.Zero, 0.8f, SpriteEffects.None, 0f);
-            spriteBatch.DrawString(ScreenManager.BigFont, $"Gems: {Shop.GemsFromScore(_score)}", new Vector2(25, 58), Color.Cyan * TransitionAlpha, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);  // what this run pays out
+            Hud.PopText(spriteBatch, ScreenManager.BigFont, $"Score: {_score}", new Vector2(25, 20), Color.Yellow, 0.7f * RunStats.ScoreScale, TransitionAlpha);  // small enough that 6 digits stay clear of the bar
+            // What this run pays out, a spinning 3D gem (drawn after the batch) and the number
+            var gemText = RunStats.GemsFor(_score).ToString();
+            var gemTextSize = Hud.PopText(spriteBatch, ScreenManager.BigFont, gemText, new Vector2(48, 58), Color.Lerp(Color.Cyan, Color.White, 0.2f), 0.5f, TransitionAlpha);
+            var hudGem = new Vector2(34, 58 + gemTextSize.Y * 0.55f);
+            RunStats.DrawScorePop(spriteBatch, ScreenManager.BigFont, new Vector2(25, 20) + ScreenManager.BigFont.MeasureString($"Score: {_score}") * 0.7f + new Vector2(10, 0), TransitionAlpha);
+            RunStats.DrawCombo(spriteBatch, ScreenManager.BigFont, _pixel, viewport.Width - 16, 12, TransitionAlpha);
+            Banner.Draw(spriteBatch, TransitionAlpha);
+            RunStats.DrawCountdown(spriteBatch, ScreenManager.BigFont, TransitionAlpha);
 
 
             spriteBatch.End();
+            _gem3D.Draw(hudGem, 9, _scrollTime * 2f, Matrix.Identity, TransitionAlpha);
         }
     }
 }

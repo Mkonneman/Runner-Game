@@ -33,6 +33,7 @@ namespace Runner_Game.Screens
         private const float RunnerStartX = 200f;
         private const float CaveMouthX = 552f;   // middle of the cave opening
         private const float RunSpeed = 220f;     // same as the ground so his steps match
+        private const float Rush = 1.8f;         // the walk into the cave plays this much faster so it doesnt drag
 
         // How long the background has been scrolling
         private float _scrollTime;
@@ -143,7 +144,11 @@ namespace Runner_Game.Screens
         }
 
         // New run from wherever the Start at setting says (hallway and boss skip the caves)
-        public static GameScreen NewRun() => Settings.TestStart >= 4 ? new ArenaScreen(0) : new GameplayScreen();
+        public static GameScreen NewRun()
+        {
+            RunStats.Reset();  // fresh stats and combo
+            return Settings.TestStart >= 4 ? new ArenaScreen(0) : new GameplayScreen();
+        }
 
         public override void Update(GameTime gameTime, bool otherScreenHasFocus, bool coveredByOtherScreen)
         {
@@ -169,12 +174,12 @@ namespace Runner_Game.Screens
             }
             else if (_caveSlide > 0)  // keeps running while the cave scrolls in from the right
             {
-                _scrollTime += dt;
-                _caveSlide = MathF.Max(0, _caveSlide - LayerInfo[^1].Speed * dt);
+                _scrollTime += dt * Rush;
+                _caveSlide = MathF.Max(0, _caveSlide - LayerInfo[^1].Speed * dt * Rush);
             }
             else if (_runner.Position.X < CaveMouthX)
             {
-                _runner.Position = new Vector2(MathF.Min(_runner.Position.X + RunSpeed * dt, CaveMouthX), _runner.Position.Y);
+                _runner.Position = new Vector2(MathF.Min(_runner.Position.X + RunSpeed * Rush * dt, CaveMouthX), _runner.Position.Y);
             }
             else if (!_gameStarted)
             {
@@ -183,9 +188,9 @@ namespace Runner_Game.Screens
                 Iris.Start();
             }
 
-            // Keep the music going while the title is showing
-            // (it gets stopped when the player crashes)
-            if (!coveredByOtherScreen && MediaPlayer.State != MediaState.Playing)
+            // Keep the title music going while the title is showing
+            // (it gets stopped when the player crashes, and the boss song keeps playing after the arena so swap that out too)
+            if (!coveredByOtherScreen && !_gameStarted && (MediaPlayer.State != MediaState.Playing || MediaPlayer.Queue.ActiveSong != _titleMusic))
             {
                 MediaPlayer.IsRepeating = true;
                 MediaPlayer.Volume = 0;  // fades in below
@@ -300,6 +305,8 @@ namespace Runner_Game.Screens
                 DrawCentered(Controls.UsingPad ? "Press RT to Start" : "Press Enter to Start", 216, Color.Yellow, 0.75f, ScreenManager.BigFont);
             }
 
+            DrawLeaderboard(spriteBatch, viewport);
+
             // Buttons (lit up when the mouse is over them)
             DrawButton(ShopButton, "Shop", 0);
             DrawButton(GearButton, "Gear", 1);
@@ -308,6 +315,38 @@ namespace Runner_Game.Screens
             DrawButton(TrophyButton, "Trophies", 4);
 
             spriteBatch.End();
+        }
+
+        // Top right crystal panel, two top 5 lists: best scores, then farthest runs. Gold / silver / bronze for the top 3
+        private void DrawLeaderboard(SpriteBatch spriteBatch, Viewport viewport)
+        {
+            if (UiAlpha <= 0) return;
+            var font = ScreenManager.MenuFont;
+            const int W = 184, H = 240, Pad = 30, RowH = 13;  // big pad keeps the text off the crystal border
+            var box = new Rectangle(viewport.Width - W - 8, 6, W, H);  // clear of the logo (ends at 558) and the buttons (start at 275)
+            Hud.Frame(spriteBatch, box, 16, Color.White * 0.95f * UiAlpha);
+            Color[] medals = { Color.Gold, new Color(200, 210, 225), new Color(215, 140, 80) };
+            void Text(string text, float x, float y, Color color, float scale, bool right = false)
+            {
+                if (right) x -= font.MeasureString(text).X * scale;
+                spriteBatch.DrawString(font, text, new Vector2(x + 1, y + 1), Color.Black * UiAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                spriteBatch.DrawString(font, text, new Vector2(x, y), color * UiAlpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            }
+            void List(string title, int[] values, string unit, int y)
+            {
+                Text(title, box.X + Pad, y, Color.Cyan, 0.32f);
+                for (int i = 0; i < 5; i++)
+                {
+                    int rowY = y + 18 + i * RowH;
+                    var color = i < values.Length ? (i < 3 ? medals[i] : Color.White) : Color.Gray * 0.5f;
+                    if (i == 0 && values.Length > 0) Hud.Glow(spriteBatch, new Vector2(box.Center.X, rowY + 6), new Vector2(W - Pad * 2, 18), Color.Gold * 0.25f * UiAlpha);  // #1 glows
+                    Text($"{i + 1}.", box.X + Pad, rowY, color, 0.28f);
+                    Text(i < values.Length ? $"{values[i]}{unit}" : "---", box.Right - Pad, rowY, color, 0.28f, right: true);
+                }
+            }
+            List("TOP SCORES", RunStats.TopScores, "", box.Y + 26);
+            spriteBatch.Draw(_pixel, new Rectangle(box.X + Pad, box.Y + 120, W - Pad * 2, 1), Color.Cyan * 0.35f * UiAlpha);  // divider
+            List("FARTHEST RUNS", RunStats.TopMeters, "m", box.Y + 128);
         }
 
         // Where an eye of the cave is on screen (the cave is drawn at the right edge, sitting on the ground)
@@ -322,7 +361,7 @@ namespace Runner_Game.Screens
         {
             var font = ScreenManager.TitleFont;
             bool hover = button.Contains(VirtualMouse.GetState().Position) || index == _selectedButton;
-            ScreenManager.SpriteBatch.Draw(_button, MenuButton.Squash(button, hover), (hover ? Color.White : new Color(170, 180, 200)) * UiAlpha);
+            ScreenManager.SpriteBatch.Draw(_button, MenuButton.Squash(button, index == _selectedButton), (hover ? Color.White : new Color(170, 180, 200)) * UiAlpha);  // only the key-picked one squashes on Enter
 
             // Label shrinks to fit long names like How to Play
             float scale = MathF.Min(0.65f, (button.Width - 28) / font.MeasureString(label).X);

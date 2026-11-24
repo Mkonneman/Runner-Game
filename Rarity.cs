@@ -19,7 +19,7 @@ namespace Runner_Game
         {
             var item = Shop.Get(id);
             int tier = id == ItemId.MirrorHelm ? 3  // hand picked, maxed it hits red
-                : item.Price == 0 ? 0 : item.Price <= 60 ? 1 : item.Price <= 250 ? 2 : 3;  // starter / cheap / mid / top shelf
+                : item.Price == 0 ? 0 : item.Price <= 60 ? 1 : item.Price <= 250 ? 2 : item.Price < 800 ? 3 : 4;  // starter / cheap / mid / top shelf / legendary
             if (item.MaxLevel > 1 && level >= item.MaxLevel) tier++;
             return Math.Min(tier, Colors.Length - 1);
         }

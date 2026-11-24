@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using Microsoft.Xna.Framework;
 
 namespace Runner_Game
 {
@@ -17,7 +18,9 @@ namespace Runner_Game
         Dash, PatchUp, BubbleShield, TimeSlow,
         HazardHat, MinersVest, MirrorHelm, SpringBoots, CrystalPlate, HoverBoots, LuckyCharm, PhoenixHeart,
         Drill,
-        SkinExplorer, SkinTraveller, SkinThief, SkinSoldier, SkinNinja, SkinHazmat, SkinSpacesuit
+        SkinExplorer, SkinTraveller, SkinThief, SkinSoldier, SkinNinja, SkinHazmat, SkinSpacesuit,
+        SkinGoldenExplorer, SkinRetroExplorer, SkinRoyalTraveller, SkinGlitchThief, SkinFrostSoldier, SkinStoneSoldier, SkinVoidNinja, SkinCrimsonNinja, SkinMagmaHazmat, SkinNegativeSpacesuit,
+        BoomerangFlail
     }
 
     /// <summary>
@@ -34,6 +37,8 @@ namespace Runner_Game
         public float[] Values;        // the stat at level 1, 2, 3... (one value = can't be upgraded)
         public Func<float, string> Show;
         public bool InShop = true;    // flip this to hide it from the shop (for unlocking stuff later on)
+        public ItemId? BaseSkin;      // recolored skins: the skin they came from (its flair, and they sit next to it in the shop)
+        public Color[] Fx;            // recolored skins: colors their flair particles use instead
         public int MaxLevel => Values.Length;
         public bool StartsOwned => Price == 0;
     }
@@ -53,6 +58,8 @@ namespace Runner_Game
                     Values = new[] { 1.4f, 1.15f, 0.9f }, Show = v => $"Quick, breaks spikes too, reach grows each level, {v:0.##}s cooldown" },
             new() { Id = ItemId.QuakeHammer, Name = "Quake Hammer", Slot = Slot.Weapon, Icon = "Images/Items/quake_hammer", Price = 200, UpgradePrice = 100,
                     Values = new[] { 6f, 5f, 3f }, Show = v => $"Huge swing, shockwave on the ground, {v:0.#}s" },
+            new() { Id = ItemId.BoomerangFlail, Name = "Boomerang Flail", Slot = Slot.Weapon, Icon = "Images/Items/boomerang_flail", Price = 350, UpgradePrice = 120,
+                    Values = new[] { 1.6f, 1.3f, 1f }, Show = v => $"Thrown out and back, smashes everything it passes, flies farther each level{(v <= 1 ? ", the chain cuts rocks too" : "")}, {v:0.#}s cooldown" },
 
             // Abilities (on the Ability key)
             new() { Id = ItemId.Dash, Name = "Dash", Slot = Slot.Ability, Icon = "Images/Items/dash", Price = 0, UpgradePrice = 30,
@@ -79,7 +86,7 @@ namespace Runner_Game
             new() { Id = ItemId.CrystalPlate, Name = "Crystal Plate", Slot = Slot.Armor, Icon = "Images/Items/crystal_plate", Price = 150, UpgradePrice = 70,
                     Values = new[] { 0.3f, 0.15f, 0f }, Show = v => v == 0 ? "Spikes do nothing to you" : $"Spikes only take {v * 100:0}% health" },
             new() { Id = ItemId.HoverBoots, Name = "Hover Boots", Slot = Slot.Armor, Icon = "Images/Items/hover_boots", Price = 60, UpgradePrice = 60,
-                    Values = new[] { 1f, 2f, 3f }, Show = v => v switch { 1 => "Float right over holes in the floor", 2 => "Float over holes, jump again in the air", _ => "Floats over holes, double jump or hold jump to hover (swap in Gear)" } },
+                    Values = new[] { 1f, 2f, 3f }, Show = v => v switch { 1 => "Float right over holes in the floor", 2 => "Float over holes, jump again in the air", _ => "Floats over holes, double jump, hold jump to hover" } },
             new() { Id = ItemId.LuckyCharm, Name = "Lucky Charm", Slot = Slot.Armor, Icon = "Images/Items/lucky_charm", Price = 50, UpgradePrice = 70,
                     Values = new[] { 1.25f, 1.5f, 2f }, Show = v => $"+{(v - 1) * 100:0}% gems from runs" },
             new() { Id = ItemId.PhoenixHeart, Name = "Phoenix Heart", Slot = Slot.Armor, Icon = "Images/Items/phoenix_heart", Price = 250, UpgradePrice = 250,
@@ -97,12 +104,23 @@ namespace Runner_Game
             Skin(ItemId.SkinNinja, "Ninja", "ninja", 300),
             Skin(ItemId.SkinHazmat, "Hazmat", "hazmat", 350),
             Skin(ItemId.SkinSpacesuit, "Spacesuit", "spacesuit", 500),
+            // Recolors of the skins above (made with Python/Pillow), their flair takes these colors
+            Skin(ItemId.SkinGoldenExplorer, "Golden Explorer", "goldenexplorer", 1000, ItemId.SkinExplorer, "Solid gold from hat to boots", new Color(255, 210, 80), new Color(255, 240, 160)),
+            Skin(ItemId.SkinRetroExplorer, "Retro Explorer", "retroexplorer", 300, ItemId.SkinExplorer, "Four shades of green, like an old handheld", new Color(139, 172, 15), new Color(48, 98, 48)),
+            Skin(ItemId.SkinRoyalTraveller, "Royal Traveller", "royaltraveller", 400, ItemId.SkinTraveller, "Purple and gold, travels in style", new Color(170, 90, 230), new Color(255, 215, 90)),
+            Skin(ItemId.SkinGlitchThief, "Glitch Thief", "glitchthief", 450, ItemId.SkinThief, "Stole a few frames, red and blue never line up", new Color(255, 60, 90), new Color(60, 220, 255)),
+            Skin(ItemId.SkinFrostSoldier, "Frost Soldier", "frostsoldier", 400, ItemId.SkinSoldier, "Ice cold, the shells come out frozen", new Color(170, 230, 255)),
+            Skin(ItemId.SkinStoneSoldier, "Stone Soldier", "stonesoldier", 350, ItemId.SkinSoldier, "Carved from cave rock, the golem approves", new Color(150, 145, 140)),
+            Skin(ItemId.SkinVoidNinja, "Void Ninja", "voidninja", 800, ItemId.SkinNinja, "Pure shadow with a glowing edge", new Color(140, 50, 220)),
+            Skin(ItemId.SkinCrimsonNinja, "Crimson Ninja", "crimsonninja", 450, ItemId.SkinNinja, "Red as a warning sign", new Color(150, 20, 30)),
+            Skin(ItemId.SkinMagmaHazmat, "Magma Hazmat", "magmahazmat", 500, ItemId.SkinHazmat, "Drips lava instead of goo", new Color(255, 120, 30), new Color(255, 200, 80)),
+            Skin(ItemId.SkinNegativeSpacesuit, "Negative Spacesuit", "negativespacesuit", 600, ItemId.SkinSpacesuit, "Every color flipped inside out", new Color(255, 130, 230)),
         }.OrderBy(i => i.Id).ToArray();
 
-        private static Item Skin(ItemId id, string name, string key, int price) => new()
+        private static Item Skin(ItemId id, string name, string key, int price, ItemId? baseSkin = null, string blurb = null, params Color[] fx) => new()
         {
-            Id = id, Name = name, Slot = Slot.Skin, Icon = "Images/Items/skin_" + key, Price = price, UpgradePrice = 0,
-            Values = new[] { 1f }, Show = _ => "Cosmetic, just changes how you look"
+            Id = id, Name = name, Slot = Slot.Skin, Icon = "Images/Items/skin_" + key, Price = price, UpgradePrice = 0, BaseSkin = baseSkin, Fx = fx.Length > 0 ? fx : null,
+            Values = new[] { 1f }, Show = _ => blurb ?? "Cosmetic, just changes how you look"
         };
 
         // Folder under Images/Skins for the equipped skin's run + moves sheets
@@ -129,13 +147,12 @@ namespace Runner_Game
         // Pickaxe reach, longer every level
         public static float PickReach => 68f + 22f * Math.Max(0, Level(ItemId.Pickaxe) - 1);
 
-        // Sets up the Hover Boots air move on the runner (level 2 = double jump, level 3 = pick double jump or hover in Gear)
+        // Sets up the Hover Boots air move on the runner (level 2 = double jump, level 3 = double jump and hold jump to hover)
         public static void ApplyBoots(Runner runner)
         {
             if (!IsEquipped(ItemId.HoverBoots) || Level(ItemId.HoverBoots) < 2) return;
-            bool hover = Level(ItemId.HoverBoots) >= 3 && Settings.AirHover;
-            runner.DoubleJump = !hover;
-            runner.AirHover = hover;
+            runner.DoubleJump = true;
+            runner.AirHover = Level(ItemId.HoverBoots) >= 3;
         }
 
         public static int Price(ItemId id) => Owns(id) ? Get(id).UpgradePrice * Level(id) : Get(id).Price;

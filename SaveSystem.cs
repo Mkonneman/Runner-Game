@@ -16,10 +16,18 @@ namespace Runner_Game
         public string[] Equipped { get; set; }
         public float MusicVolume { get; set; } = 1f;
         public float SfxVolume { get; set; } = 1f;
+        public float UiVolume { get; set; } = 1f;
+        public float ShakeAmount { get; set; } = 1f;
+        public float Rumble { get; set; } = 1f;
+        public bool HitStop { get; set; } = true;
+        public int BestScore { get; set; }
+        public int[] TopScores { get; set; }
+        public int[] TopMeters { get; set; }
         public float SmashRingOpacity { get; set; } = 0.25f;
         public float SkinFxAmount { get; set; } = 1f;
         public bool InfiniteMoney { get; set; }
         public bool AirHover { get; set; }
+        public bool EquipPrompt { get; set; } = true;
         public string[] KeyBindings { get; set; }
         public int WallDeaths { get; set; }       // for the "Wall: N, You: 0" pun
         public int Checkpoint { get; set; }       // checkpoints were removed, kept so old saves still load
@@ -46,10 +54,18 @@ namespace Runner_Game
                 Equipped = Shop.EquippedNames(),
                 MusicVolume = Settings.MusicVolume,
                 SfxVolume = Settings.SfxVolume,
+                UiVolume = Settings.UiVolume,
+                ShakeAmount = Settings.ShakeAmount,
+                Rumble = Settings.Rumble,
+                HitStop = Settings.HitStop,
+                BestScore = RunStats.Best,
+                TopScores = RunStats.TopScores,
+                TopMeters = RunStats.TopMeters,
                 SmashRingOpacity = Settings.SmashRingOpacity,
                 SkinFxAmount = Settings.SkinFxAmount,
                 InfiniteMoney = Settings.InfiniteMoney,
                 AirHover = Settings.AirHover,
+                EquipPrompt = Settings.EquipPrompt,
                 KeyBindings = Controls.Save(),
                 Checkpoint = CaveZones.Checkpoint,
                 WallDeaths = Screens.GameOverScreen.WallDeaths,
@@ -80,10 +96,18 @@ namespace Runner_Game
                 Shop.Load(data.Gems, data.ItemLevels ?? Shop.FromOldUpgrades(data.UpgradeLevels), data.Equipped);
                 Settings.MusicVolume = Math.Clamp(data.MusicVolume, 0, 1);
                 Settings.SfxVolume = Math.Clamp(data.SfxVolume, 0, 1);
+                Settings.UiVolume = Math.Clamp(data.UiVolume, 0, 1);
+                Settings.ShakeAmount = Math.Clamp(data.ShakeAmount, 0, 1);
+                Settings.Rumble = Math.Clamp(data.Rumble, 0, 1);
+                Settings.HitStop = data.HitStop;
+                RunStats.Best = Math.Max(0, data.BestScore);
+                RunStats.TopScores = data.TopScores ?? (RunStats.Best > 0 ? new[] { RunStats.Best } : Array.Empty<int>());  // older saves only had the best
+                RunStats.TopMeters = data.TopMeters ?? Array.Empty<int>();
                 Settings.SmashRingOpacity = Math.Clamp(data.SmashRingOpacity, 0, 1);
                 Settings.SkinFxAmount = Math.Clamp(data.SkinFxAmount, 0, 1);
                 Settings.InfiniteMoney = data.InfiniteMoney;
                 Settings.AirHover = data.AirHover;
+                Settings.EquipPrompt = data.EquipPrompt;
                 Controls.Load(data.KeyBindings);
                 CaveZones.Checkpoint = Math.Clamp(data.Checkpoint, 0, CaveZones.Count - 1);
                 Screens.GameOverScreen.WallDeaths = Math.Max(0, data.WallDeaths);
@@ -100,6 +124,8 @@ namespace Runner_Game
             Shop.Load(0, null, null);
             CaveZones.Checkpoint = 0;
             Screens.GameOverScreen.WallDeaths = 0;
+            RunStats.Best = 0;
+            RunStats.TopScores = Array.Empty<int>(); RunStats.TopMeters = Array.Empty<int>();
             Runner_Game.Achievements.Load(null, null);
             Save();
         }

@@ -14,6 +14,7 @@ namespace Runner_Game
         public static Vector2 Center = new(Game1.VirtualWidth / 2f, Game1.VirtualHeight / 2f);  // the run screens point this at the player
 
         public static bool Active => _t >= 0;
+        public static float Left => Active ? MathF.Max(0, Hold + Open - _t) : 0;  // seconds till it's fully open
         public static void Start() => _t = 0;
 
         public static void Draw(SpriteBatch spriteBatch, Texture2D pixel, float dt)

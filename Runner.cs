@@ -48,6 +48,10 @@ namespace Runner_Game
         public int Facing => facing;
         public bool FlipToFacing;
         private float knock;                    // sideways shove from a hit, wears off fast
+        public float Held;                       // a vine has him, no moving or jumping till it runs out
+        public float VerticalSpeed => verticalSpeed;  // + = falling
+        // Mushroom cap launches him up, counts as a fresh jump so the double jump comes back
+        public void Bounce(float strength) { isJumping = true; jumpCut = true; usedDouble = false; hoverLeft = HoverTime; verticalSpeed = -JUMP_SPEED * strength; }
         public void Knock(float speed) { knock = speed; if (!isJumping) { isJumping = true; verticalSpeed = -JUMP_SPEED * 0.45f; } }  // little hop backward               // arena: he turns around when walking left
         private SpriteEffects Flip => FlipToFacing && facing < 0 ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
 
@@ -166,6 +170,7 @@ namespace Runner_Game
         public bool IsMoving => moving || !IdleWhenStill;  // caves always count as running
 
         // Where the launcher muzzle is in the world (pixel 46,17 of the shoot frame)
+        public Vector2 Hand => position + new Vector2(6 * (FlipToFacing ? facing : 1), 20 - FRAME_HEIGHT) * scale;  // his front hand, about where it swings while running
         public Vector2 Muzzle => position + new Vector2((46 - FRAME_WIDTH / 2f) * (FlipToFacing ? facing : 1), 17 - FRAME_HEIGHT) * scale;
 
         public void Update(GameTime gameTime)
@@ -174,6 +179,9 @@ namespace Runner_Game
             Vector2 startPosition = position;
 
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            // Tangled in a vine, stuck right where he is
+            if (Held > 0) { Held -= dt; isJumping = true; verticalSpeed = 0; Velocity = Vector2.Zero; return; }  // the vine moves him
 
             // Hold left or right to move, kept on screen (keys come from Controls so they can be rebound)
             int direction = 0;

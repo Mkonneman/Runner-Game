@@ -35,6 +35,7 @@ namespace Runner_Game
         private static readonly Dictionary<string, int> _stats = new();
         public static bool Has(string id) => _unlocked.Contains(id);
         public static int Count => _unlocked.Count;
+        public static int Stat(string id) => _stats.GetValueOrDefault(id);  // lifetime totals for the Stats page
 
         // Bumps a lifetime stat and unlocks whatever hits its goal
         public static void Add(string stat, int amount = 1)

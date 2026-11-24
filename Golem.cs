@@ -23,6 +23,11 @@ namespace Runner_Game
         public const int MaxHp = 30;
 
         private Texture2D _sheet, _laser, _fist;
+        private Texture2D _rageSheet;  // same sheet hue shifted purple
+
+        // Rage: under 30% health his stone goes purple, he picks moves faster and throws 3 fists at once
+        public bool Enraged => _state != State.Waiting && Hp <= MaxHp * 3 / 10;
+        private float _rageT;  // seconds since he snapped, fades the purple in
         public Texture2D RockTexture, Pixel;   // set by the arena (the cave's falling rock, and a white pixel)
         public SpriteFont Font;                // for the ! warning
         public Action Landed;                  // he hit the floor after a jump or a pound (the arena shakes the screen)
@@ -100,6 +105,7 @@ namespace Runner_Game
         public void Load(ContentManager content)
         {
             _sheet = content.Load<Texture2D>("Images/Boss/golem");
+            _rageSheet = content.Load<Texture2D>("Images/Boss/golem_rage");
             _laser = content.Load<Texture2D>("Images/Boss/golem_laser");
             _fist = content.Load<Texture2D>("Images/Boss/golem_fist");
             _shard = content.Load<Texture2D>("Images/Particles/shard");
@@ -124,6 +130,11 @@ namespace Runner_Game
         {
             _t += dt;
             _hitFlash -= dt; _bonk -= dt;
+            if (Enraged)
+            {
+                if (_rageT == 0) { Landed?.Invoke(); Sfx.Play("slam", 0.9f, -0.5f); Rumble.Slam(); }  // he snaps, big stomp
+                _rageT += dt;
+            }
             _floorY = Feet.Y;
             float rage = 1 - Hp / (float)MaxHp;
             var me = runner.Bounds;
@@ -141,7 +152,7 @@ namespace Runner_Game
                     if (_strolling) X += MathF.Sign(_wanderX - X) * MathHelper.Lerp(110, 170, rage) * dt;
                     _faceLeft = gap < 0;
                     if (lingering && _t > 0.25f) { Go(State.Windup); _closeTime = 0; break; }  // stuck around too long, swipe
-                    if (_t > MathHelper.Lerp(1.1f, 0.45f, rage))
+                    if (_t > MathHelper.Lerp(1.1f, 0.45f, rage) * (Enraged ? 0.75f : 1f))  // even less thinking time when raging
                     {
                         // Shield only when his health drops past 75%, 50% and 25% (once each), otherwise a normal move
                         bool shieldDue = _shields < 3 && Hp <= MaxHp * (0.75f - 0.25f * _shields);
@@ -216,7 +227,9 @@ namespace Runner_Game
                     if (!_fired && _t > ThrowAt)
                     {
                         var aim = _aim - Hand;
-                        _fists.Add((Hand, Vector2.Normalize(aim) * FistSpeed * (1 + rage * 0.5f))); _fired = true; shoot();
+                        var vel = Vector2.Normalize(aim) * FistSpeed * (1 + rage * 0.5f);
+                        _fists.Add((Hand, vel)); _fired = true; shoot();
+                        if (Enraged) foreach (float spread in new[] { -0.3f, 0.3f }) _fists.Add((Hand, Vector2.Transform(vel, Matrix.CreateRotationZ(spread))));  // raging, a fan of 3
                     }
                     if (_t > ThrowAt + 0.35f) Go(State.Idle);
                     break;
@@ -370,8 +383,13 @@ namespace Runner_Game
                 default: if (_state == State.Idle && _strolling) { row = RowWalk; frame = (int)(_t / 0.09f) % 10; } else { row = RowIdle; frame = (int)(_t / 0.15f) % 4; } break;
             }
             var color = _hitFlash > 0 ? new Color(255, 160, 160) : Immune ? new Color(150, 190, 255) : Color.White;
-            spriteBatch.Draw(_sheet, Drawn, new Rectangle(frame * Cell, row * Cell, Cell, Cell), color * alpha, 0f, new Vector2(50, 70), Scale,
-                _faceLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0f);
+            float rageIn = MathHelper.Clamp(_rageT / 0.6f, 0, 1);
+            if (rageIn > 0 && Glow != null)  // purple haze pulsing behind him
+                spriteBatch.Draw(Glow, Body.Center, null, new Color(150, 80, 255) * (0.3f + 0.12f * MathF.Sin(_rageT * 6)) * rageIn * alpha, 0f, new Vector2(Glow.Width / 2f, Glow.Height / 2f), Body.Radius * 3.2f / Glow.Width, SpriteEffects.None, 0f);
+            var source = new Rectangle(frame * Cell, row * Cell, Cell, Cell);
+            var flip = _faceLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
+            spriteBatch.Draw(_sheet, Drawn, source, color * alpha * (1 - rageIn), 0f, new Vector2(50, 70), Scale, flip, 0f);
+            if (rageIn > 0) spriteBatch.Draw(_rageSheet, Drawn, source, color * alpha * rageIn, 0f, new Vector2(50, 70), Scale, flip, 0f);  // cross fades to the purple sheet
 
             // Shielded: a pulsing blue bubble with a dotted rim so it's obvious hits won't land (flashes when something bonks it)
             if (Immune && Glow != null)  // faint blue bubble, brighter for a blink when something bonks it

@@ -4,6 +4,9 @@ Music (Content/Audio/Music)
 - eraser.wav – Title screen music Orignal composed Music by Gian Hill
 - court_death.wav – Cave run music Orignal composed Music by Gian Hill
 - plunder.wav – Shop music Orignal composed Music by Gian Hill
+- cave_level_loop.ogg – Ember cave music ("Cave Level Loop"), Suno AI-generated music, Suno (https://suno.com)
+- dripping_dangers.ogg – Moss cave music and the door prompt ("Dripping Dangers"), Suno AI-generated music, Suno (https://suno.com)
+- final_pixel_clash.ogg – Hallway and Stone Golem music ("Final Pixel Clash"), Suno AI-generated music, Suno (https://suno.com)
 
 Sound Effects (Content/Audio/Sfx)
 - crash.wav – Procedurally generated sound effect, created with Claude (Anthropic) using Python/NumPy
@@ -19,6 +22,11 @@ Fonts (Content/Fonts)
 - Pixellari.ttf (BodyFont) – "Pixellari" by Zacchary Dempsey-Plante, 100% Free, Dafont (https://www.dafont.com/pixellari.font)
 
 Menu (Content/Images/Menu)
+- golem_rage.png – The golem sheet hue shifted purple with Python/Pillow for his rage phase
+- boomerang_flail.png (Items), flail.png (Gameplay) – Boomerang Flail weapon art (just the boomerang), AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out and shrunk with Python/Pillow
+- gear_slot.png, gear_bag.png – Crystal sockets and bag frame on the Gear screen, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out with Python/Pillow
+- item_card.png – Crystal card behind each shop item, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out with Python/Pillow
+- upgrade_panel.png – Crystal frame for the shop upgrade card, the run stat tiles and the leaderboard, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out with Python/Pillow
 - menu_sky.png, menu_mountains.png, menu_trees.png, menu_ground.png, menu_cave.png – AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs)
 - logo.png – "Rock Rush" title text, Hand-Made in Photoshop by Maxwell Konneman
 - button.png – Stone menu button, Hand-Made in Photoshop by Maxwell Konneman
@@ -33,16 +41,19 @@ Cave Background (Content/Images/Cave)
 
 Gameplay (Content/Images/Gameplay)
 - player_run.png – "Platformer Hero Pack" by Drasnus, itch.io (free, commercial use permitted per creator: https://drasnus.itch.io/platformer-hero-pack)
+- Skins/goldenexplorer, retroexplorer, royaltraveller, glitchthief, frostsoldier, stonesoldier, voidninja, crimsonninja, magmahazmat, negativespacesuit (and their skin_ icons) – recolors of the Platformer Hero Pack skins above, made with Python/Pillow (gradient maps, palette, hue, outline, RGB split, invert)
 - lantern.png – AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs)
 - spike_rock.png – AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs)
 - stalactite.png – AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs)
 - wall_stone.png, hammer.png – AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs)
+- icicle.png, vines.png, mushroom.png – Cave hazards, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out with Python/Pillow
 
 Floor Tilemap (Content/Images/Cave, Content/Maps)
 - floor_tiles.png – Tileset sliced from cave_floor.png with Python/Pillow (gap edges and pit drawn in code)
 - cave_floor.txt – Tilemap layout for the looping floor and its gaps
 
 HUD (Content/Images/HUD)
+- banner_blue.png, banner_ember.png, banner_moss.png, banner_lair.png – Cave name banners, provided by Maxwell Konneman (black background cut out with Python/Pillow)
 - CooldownShiftButton.png, SmashCooldownButton.png – Button icons, Hand-Made in Photoshop by Maxwell Konneman
 
 Particles (Content/Images/Particles)
