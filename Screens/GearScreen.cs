@@ -237,7 +237,7 @@ namespace Runner_Game.Screens
                 var rect = SlotRectangle(s);
                 bool focus = _area == 0 && _index == s;
                 bool fits = carrying is ItemId c && (int)Shop.Get(c).Slot == s;
-                MenuButton.Draw(spriteBatch, _slotArt, rect, (fits ? new Color(140, 255, 160) : focus ? Color.Yellow : Color.White) * a);
+                MenuButton.Draw(spriteBatch, _slotArt, rect, (fits ? new Color(140, 255, 160) : focus ? Color.Yellow : Color.White) * a, true, focus);
                 DrawText(SlotNames[s], new Vector2(rect.Right + 8, rect.Y + 16), focus ? Color.Yellow : Color.White, 0.35f);
                 if (Shop.Equipped((Slot)s) is ItemId on && on != _dragging)
                 {
@@ -316,7 +316,17 @@ namespace Runner_Game.Screens
                 Rarity.DrawGlow(spriteBatch, dragArea, Rarity.Of(drag), a);
                 spriteBatch.Draw(_icons[(int)drag], dragArea, Color.White * a);
             }
+            // Controller: RT badge over the picked item, holding RT pops up its overview like a mouse hover
+            ItemId? padPick = _area == 0 && _index < SlotNames.Length ? Shop.Equipped((Slot)_index) : _area == 1 && _index < bag.Length ? bag[_index].Id : null;
+            var pickRect = _area == 0 ? SlotRectangle(Math.Min(_index, SlotNames.Length - 1)) : BagRectangle(Math.Min(_index, Math.Max(0, bag.Length - 1)));
+            if (Controls.UsingPad && _dragging == null && padPick != null)
+            {
+                Hud.PadHint(spriteBatch, font, "RT", new Vector2(pickRect.Right - 4, pickRect.Y + 2), a);
+                if (GamePad.GetState(PlayerIndex.One).Triggers.Right > 0.5f) { _hover = padPick; mouse = new Point(pickRect.Center.X, pickRect.Bottom); }
+            }
+
             // Quick overview when hovering (not while dragging)
+            if (_dragging != null) { }
             else if (_hover is ItemId hover)
             {
                 var item = Shop.Get(hover);

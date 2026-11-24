@@ -29,7 +29,7 @@ namespace Runner_Game.Screens
         private float _musicFade = 1f;    // dips to 0 while the songs swap
         // Each cave's song, blue / ember / moss
         private static readonly string[] CaveSongs = { "court_death", "cave_level_loop", "dripping_dangers" };
-        public static string CaveSong(int zone) => "Audio/Music/" + CaveSongs[Math.Clamp(zone, 0, CaveSongs.Length - 1)];
+        public static string CaveSong(int zone) => "Audio/Music/" + CaveSongs[CaveZones.Kind(Math.Max(0, zone))];  // endless colors use their story cave's song
         private SoundEffect _crashSound;
         private SoundEffect _swingSound;   // whoosh on every hammer swing, hit or miss
         private SoundEffect _laserChargeSound, _laserFireSound, _wallWarningSound;
@@ -407,7 +407,7 @@ namespace Runner_Game.Screens
             // Start the music from the beginning
             MediaPlayer.IsRepeating = true;
             MediaPlayer.Volume = Settings.MusicVolume;  // the title may still be fading in
-            _runnerMusic = _content.Load<Song>(CaveSong(Math.Min((int)(_scrollTime / CaveZones.ZoneLength), CaveZones.Count - 1)));  // a test start in a later cave gets that cave's song
+            _runnerMusic = _content.Load<Song>(CaveSong(CaveZones.At(_scrollTime).From));  // a test start in a later cave gets that cave's song
             MediaPlayer.Play(_runnerMusic);
         }
 
@@ -432,11 +432,11 @@ namespace Runner_Game.Screens
             Banner.Update(frame);
             if (RunStats.CountingDown(frame) || HitStop.Frozen(frame)) return;
             RunStats.Update(frame, _score);
-            int zone = Math.Min((int)(_scrollTime / CaveZones.ZoneLength), CaveZones.Count - 1);
+            int zone = CaveZones.At(_scrollTime).From;
             if (zone != _bannerZone)
             {
                 _bannerZone = zone;
-                Banner.Show(zone, MathF.Max(0, Iris.Left - 0.2f));  // new cave, drop its name in (the first one waits for the circle to open)
+                Banner.ShowCave(zone, MathF.Max(0, Iris.Left - 0.2f));  // new cave, drop its name in (the first one waits for the circle to open)
                 var song = _content.Load<Song>(CaveSong(zone));
                 if (song != _runnerMusic) _nextSong = song;  // new cave, new song
             }
@@ -598,7 +598,7 @@ namespace Runner_Game.Screens
                 {
                     _flail.Throw(1);  // out and back, smashes on the way
                     _swingSound.PlaySfx(0.8f, 0.3f, 0f);
-                    Rumble.Swing();
+                    Rumble.Play("flail");
                 }
                 else
                 {
@@ -612,7 +612,7 @@ namespace Runner_Game.Screens
                         _quakes.Add(_runner.Bounds.Right);
                         _shockwaveSound.PlaySfx(0.8f, 0f, 0f);
                         Shake(5f, 0.3f);
-                        Rumble.Pulse(0.6f, 0.2f, 0.25f);
+                        Rumble.Play("quake");
                     }
                 }
             }
@@ -697,7 +697,7 @@ namespace Runner_Game.Screens
                 _lasers.Add((_runner.Position.X, 0, false));
                 _laserChargeSound.PlaySfx(0.6f, 0f, 0f);  // whine climbs for the whole warning
                 _laserTimer = RandomHelper.NextFloat(MathHelper.Lerp(14f, 7f, Difficulty), MathHelper.Lerp(20f, 11f, Difficulty));  // rare at first, more often later
-                _laserTimer *= new[] { 2.5f, 1.6f, 1f }[Math.Min(2, CaveZones.At(_scrollTime).From)];  // rare in blue, more in orange, full rate in green
+                _laserTimer *= new[] { 2.5f, 1.6f, 1f }[CaveZones.Kind(CaveZones.At(_scrollTime).From)];  // rare in blue, more in orange, full rate in green
                 if (_armor == ItemId.MirrorHelm) _laserTimer *= 0.55f;
             }
 
@@ -1024,7 +1024,7 @@ namespace Runner_Game.Screens
         private void UpdateEnding(float dt)
         {
             float width = ScreenManager.GraphicsDevice.Viewport.Width;
-            if (_endPhase == 0 && _scrollTime >= EndTime - ClearTime)
+            if (_endPhase == 0 && !CaveZones.Endless && _scrollTime >= EndTime - ClearTime)  // endless never reaches the door
             {
                 _endPhase = 1;
                 _noGapFrom = FloorScroll + width + Tilemap.TileSize * 2;  // only floor that's not on screen yet goes solid
@@ -1122,7 +1122,7 @@ namespace Runner_Game.Screens
                 bool top = true;
                 float tip = RandomHelper.NextFloat(GemTipMin, GemTipMax);  // random size, never huge
                 float x = width + GemHalf(tip) + 10;  // starts just off screen
-                if (CaveZones.At(_scrollTime).From < 1) _gemTimer = 1f;  // orange and green caves only
+                if (CaveZones.Kind(CaveZones.At(_scrollTime).From) < 1) _gemTimer = 1f;  // orange and green caves only
                 else if (!Fits(x - GemHalf(tip), x + GemHalf(tip), GemLane(tip), 40)) _gemTimer = 0.3f;  // not over holes, nothing it would overlap or trap him with
                 else
                 {
@@ -1817,7 +1817,7 @@ namespace Runner_Game.Screens
                 const int barWidth = 270, barHeight = 10, gap = 6;
                 int barX = viewport.Width / 2 - barWidth / 2, barY = 18;
                 int chunk = (barWidth - gap * (CaveZones.Count - 1)) / CaveZones.Count;
-                float depth = _scrollTime / CaveZones.ZoneLength;  // 1.5 = halfway through the 2nd cave
+                float depth = (CaveZones.Endless ? _scrollTime % (CaveZones.ZoneLength * CaveZones.Count) : _scrollTime) / CaveZones.ZoneLength;  // endless starts the bar over each loop  // 1.5 = halfway through the 2nd cave
                 for (int z = 0; z < CaveZones.Count; z++)
                 {
                     Hud.Bar(spriteBatch, new Rectangle(barX + z * (chunk + gap), barY, chunk, barHeight), depth - z, CaveZones.BarColors[z], _scrollTime, TransitionAlpha);

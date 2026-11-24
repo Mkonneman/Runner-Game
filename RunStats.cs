@@ -17,8 +17,9 @@ namespace Runner_Game
         public static float BestMultiplier = 1f;
 
         // Best score ever and the top 5 runs by score and by distance in meters (saved)
-        public static int Best;
-        public static int[] TopScores = System.Array.Empty<int>(), TopMeters = System.Array.Empty<int>();
+        public static int Best = SeedScore;
+        public static int[] TopScores = { SeedScore }, TopMeters = { SeedMeters };
+        public const int SeedScore = 33765, SeedMeters = 2042;  // the dev's run, what a new save has to beat
 
         // Drops a finished run into both top 5 lists
         public static void Record(int score, int meters)
@@ -63,7 +64,7 @@ namespace Runner_Game
             float before = Multiplier;
             _chain++;
             _chainLeft = ChainTime;
-            if (Multiplier > before) { _bounceT = 0; Sfx.Play("diamond", 0.35f, 0f); Rumble.Pulse(0.2f, 0.4f, 0.15f); }  // stepped up, bounce it
+            if (Multiplier > before) { _bounceT = 0; Sfx.Play("diamond", 0.35f, 0f); Rumble.Play("combo"); }  // stepped up, bounce it
             BestMultiplier = MathF.Max(BestMultiplier, Multiplier);
             int bonus = (int)MathF.Round(points * (Multiplier - 1));
             ComboBonus += bonus;

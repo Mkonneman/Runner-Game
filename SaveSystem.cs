@@ -124,8 +124,8 @@ namespace Runner_Game
             Shop.Load(0, null, null);
             CaveZones.Checkpoint = 0;
             Screens.GameOverScreen.WallDeaths = 0;
-            RunStats.Best = 0;
-            RunStats.TopScores = Array.Empty<int>(); RunStats.TopMeters = Array.Empty<int>();
+            RunStats.Best = RunStats.SeedScore;  // back to the dev's run to beat
+            RunStats.TopScores = new[] { RunStats.SeedScore }; RunStats.TopMeters = new[] { RunStats.SeedMeters };
             Runner_Game.Achievements.Load(null, null);
             Save();
         }

@@ -55,6 +55,7 @@ namespace Runner_Game.Screens
         private static readonly Rectangle TrophyButton = new Rectangle(517, 275, 140, 48);
         private static readonly Rectangle HowToPlayButton = new Rectangle(12, 424, 170, 44);  // tucked in the bottom left
         private static readonly Rectangle SettingsButton = new Rectangle(702, 424, 140, 44);
+        private static readonly Rectangle EndlessButton = new Rectangle(357, 333, 140, 44);  // shows up once the golem is beaten, mouse only
         private Texture2D _button;
         private Texture2D _shopIcon;  // gem pouch with a hammer and gear (oooh)
         private Texture2D _settingsIcon, _helpIcon;  // cog and ?
@@ -147,7 +148,7 @@ namespace Runner_Game.Screens
         public static GameScreen NewRun()
         {
             RunStats.Reset();  // fresh stats and combo
-            return Settings.TestStart >= 4 ? new ArenaScreen(0) : new GameplayScreen();
+            return Settings.TestStart >= 4 && !CaveZones.Endless ? new ArenaScreen(0) : new GameplayScreen();
         }
 
         public override void Update(GameTime gameTime, bool otherScreenHasFocus, bool coveredByOtherScreen)
@@ -190,7 +191,8 @@ namespace Runner_Game.Screens
 
             // Keep the title music going while the title is showing
             // (it gets stopped when the player crashes, and the boss song keeps playing after the arena so swap that out too)
-            if (!coveredByOtherScreen && !_gameStarted && (MediaPlayer.State != MediaState.Playing || MediaPlayer.Queue.ActiveSong != _titleMusic))
+            // only once nothing is left above it, a run fading out after Play Again would let it steal the new run's song
+            if (!coveredByOtherScreen && !_gameStarted && ScreenManager.GetScreens()[^1] == this && (MediaPlayer.State != MediaState.Playing || MediaPlayer.Queue.ActiveSong != _titleMusic))
             {
                 MediaPlayer.IsRepeating = true;
                 MediaPlayer.Volume = 0;  // fades in below
@@ -205,10 +207,12 @@ namespace Runner_Game.Screens
         {
             // Arrows / d-pad move around the buttons like they sit on screen: Play, then Shop Gear Trophies, then How to Play and Settings in the corners
             int[] top = { 0, 1, 4 }, bottom = { 2, 3 };
+            bool endless = Achievements.Has("golem");
             int col = Array.IndexOf(top, _selectedButton), corner = Array.IndexOf(bottom, _selectedButton);
             int was = _selectedButton;
-            if (input.IsNewKeyPress(Keys.Down)) _selectedButton = _selectedButton < 0 ? 1 : col >= 0 ? bottom[col == 2 ? 1 : 0] : _selectedButton;
-            else if (input.IsNewKeyPress(Keys.Up)) _selectedButton = col >= 0 ? -1 : corner >= 0 ? top[corner == 0 ? 0 : 2] : -1;
+            // Endless (5) sits under Gear once it's unlocked
+            if (input.IsNewKeyPress(Keys.Down)) _selectedButton = _selectedButton < 0 ? 1 : _selectedButton == 1 && endless ? 5 : _selectedButton == 5 ? 2 : col >= 0 ? bottom[col == 2 ? 1 : 0] : _selectedButton;
+            else if (input.IsNewKeyPress(Keys.Up)) _selectedButton = _selectedButton == 5 ? 1 : col >= 0 ? -1 : corner >= 0 ? (endless ? 5 : top[corner == 0 ? 0 : 2]) : -1;
             else if (input.IsNewKeyPress(Keys.Right)) _selectedButton = col >= 0 ? top[Math.Min(col + 1, 2)] : corner >= 0 ? 3 : 1;
             else if (input.IsNewKeyPress(Keys.Left)) _selectedButton = col >= 0 ? top[Math.Max(col - 1, 0)] : corner >= 0 ? 2 : 1;
             if (_selectedButton != was) Sfx.Play("menu_move", 0.4f, 0f);
@@ -217,7 +221,7 @@ namespace Runner_Game.Screens
             bool confirm = input.IsNewKeyPress(Keys.Enter);
             bool start = input.CurrentKeyboardState.IsKeyDown(Keys.Space) && input.LastKeyboardState.IsKeyUp(Keys.Space) || input.IsNewButtonPress(Buttons.Start) || input.IsNewButtonPress(Buttons.RightTrigger);
             if (confirm && _selectedButton < 0) start = true;
-            if (start) _enteringCave = true;
+            if (start && !_enteringCave) { CaveZones.Endless = false; _enteringCave = true; }  // the normal run
 
             // Clicking works too, and Tab is still the shop shortcut
             var mouse = VirtualMouse.GetState();
@@ -225,11 +229,20 @@ namespace Runner_Game.Screens
             if (mouse.Position != _lastMouse.Position) _selectedButton = -1;  // mouse takes over the highlight
             _lastMouse = mouse;
             int open = confirm && !start ? _selectedButton : -1;
+            if (open == 5) { open = -1; click = true; mouse = new MouseState(EndlessButton.Center.X, EndlessButton.Center.Y, 0, ButtonState.Pressed, ButtonState.Released, ButtonState.Released, ButtonState.Released, ButtonState.Released); }  // Enter / A on Endless acts like clicking it
             if (click && ShopButton.Contains(mouse.Position) || input.IsNewKeyPress(Keys.Tab)) open = 0;
             if (click && GearButton.Contains(mouse.Position)) open = 1;
             if (click && HowToPlayButton.Contains(mouse.Position)) open = 2;
             if (click && SettingsButton.Contains(mouse.Position)) open = 3;
             if (click && TrophyButton.Contains(mouse.Position)) open = 4;
+            if (!_enteringCave && click && Achievements.Has("golem") && EndlessButton.Contains(mouse.Position))
+            {
+                // Endless, the caves just keep cycling colors, no door or boss
+                Sfx.Play("menu_pick", 0.5f, 0f);
+                CaveZones.Endless = true;
+                _enteringCave = true;
+                return;
+            }
             if (!_enteringCave && open >= 0)
             {
                 Sfx.Play("menu_pick", 0.5f, 0f);
@@ -313,6 +326,7 @@ namespace Runner_Game.Screens
             DrawButton(HowToPlayButton, "How to Play", 2);
             DrawButton(SettingsButton, "Settings", 3);
             DrawButton(TrophyButton, "Trophies", 4);
+            if (Achievements.Has("golem")) DrawButton(EndlessButton, "Endless", 5);
 
             spriteBatch.End();
         }
@@ -361,6 +375,7 @@ namespace Runner_Game.Screens
         {
             var font = ScreenManager.TitleFont;
             bool hover = button.Contains(VirtualMouse.GetState().Position) || index == _selectedButton;
+            MenuButton.Hover(button, hover);  // grows and bounces for the mouse or the key / pad pick
             ScreenManager.SpriteBatch.Draw(_button, MenuButton.Squash(button, index == _selectedButton), (hover ? Color.White : new Color(170, 180, 200)) * UiAlpha);  // only the key-picked one squashes on Enter
 
             // Label shrinks to fit long names like How to Play

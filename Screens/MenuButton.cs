@@ -117,16 +117,21 @@ namespace Runner_Game.Screens
             return new Rectangle((int)p.X, (int)p.Y, (int)(r.Width * s.X), (int)(r.Height * s.Y));
         }
 
+        // Under the mouse or picked with keys / controller, start (or keep) its grow spring
+        public static void Hover(Rectangle dest, bool hot)
+        {
+            if (hot && !_springs.ContainsKey(dest.Center)) _springs[dest.Center] = new Spring();
+            if (_springs.TryGetValue(dest.Center, out var sp)) { sp.Rect = dest; sp.Hot |= hot; }
+        }
+
         // squash = false for boxes that aren't buttons (panels, popups, frames), selected = whether Enter presses it (null = guess from the white tint)
         public static void Draw(SpriteBatch spriteBatch, Texture2D texture, Rectangle dest, Color color, bool squash = true, bool? selected = null)
         {
             if (squash)
             {
-                // Mouse over it, start (or keep) its grow spring
-                bool hot = dest.Contains(VirtualMouse.GetState().Position);
-                if (hot && !_springs.ContainsKey(dest.Center)) _springs[dest.Center] = new Spring();
-                if (_springs.TryGetValue(dest.Center, out var sp)) { sp.Rect = dest; sp.Hot |= hot; }
-                dest = Squash(dest, selected ?? (color.R >= 250 && color.G >= 250 && color.B >= 250));  // Tint(true) is white, that's the picked one
+                bool picked = selected ?? (color.R >= 250 && color.G >= 250 && color.B >= 250);  // Tint(true) is white, that's the picked one
+                Hover(dest, dest.Contains(VirtualMouse.GetState().Position) || picked);
+                dest = Squash(dest, picked);
             }
             int b = Border, w = texture.Width, h = texture.Height;
             int bx = System.Math.Min(b, dest.Width / 2), by = System.Math.Min(b, dest.Height / 2);  // tiny buttons just squish the corners

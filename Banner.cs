@@ -17,21 +17,45 @@ namespace Runner_Game
 
         private const float DropTime = 0.5f, HoldTime = 1.1f, FadeTime = 0.45f, RestY = 62f, Scale = 0.7f;
         private static Texture2D _showing;
+        private static string _text;     // endless caves have no art yet, their name is written out instead
+        private static Color _textColor;
+        private static SpriteFont _font;
         private static float _t = 99f;
 
-        public static void Load(ContentManager content) => _art = Array.ConvertAll(Files, f => content.Load<Texture2D>("Images/HUD/" + f));
+        public static void Load(ContentManager content)
+        {
+            _art = Array.ConvertAll(Files, f => content.Load<Texture2D>("Images/HUD/" + f));
+            _font = content.Load<SpriteFont>("Fonts/TitleFont");
+        }
 
-        public static void Show(int which, float delay = 0) { _showing = _art[which]; _t = -delay; }  // negative time = still waiting to drop
+        public static void Show(int which, float delay = 0) { _showing = _art[which]; _text = null; _t = -delay; }  // negative time = still waiting to drop
+
+        // A cave's sign, the endless only colors get their name in their color
+        public static void ShowCave(int zone, float delay = 0)
+        {
+            if (zone < Lair) { Show(zone, delay); return; }
+            _showing = null; _text = CaveZones.Names[zone]; _textColor = CaveZones.BarColors[zone]; _t = -delay;
+        }
         public static void Update(float dt) => _t += dt;
 
         public static void Draw(SpriteBatch spriteBatch, float alpha)
         {
-            if (_showing == null || _t < 0 || _t > DropTime + HoldTime + FadeTime) return;
+            if ((_showing == null && _text == null) || _t < 0 || _t > DropTime + HoldTime + FadeTime) return;
             float y = RestY - 180 * MathF.Exp(-7f * _t) * MathF.Cos(_t * MathHelper.TwoPi * 1.4f);  // springs down from off screen
             y += 4 * MathF.Sin(MathF.Max(0, _t - DropTime) * 3f);  // bobs gently while it hangs there
             float gone = MathHelper.Clamp((_t - DropTime - HoldTime) / FadeTime, 0, 1);
             y -= 24 * gone * gone;  // floats up as it fades
             float fade = alpha * (1 - gone);
+            if (_text != null)
+            {
+                var textSize = _font.MeasureString(_text);
+                var at = new Vector2(Game1.VirtualWidth / 2f - textSize.X / 2, y + 20);
+                for (int ox = -3; ox <= 3; ox += 3)
+                    for (int oy = -3; oy <= 3; oy += 3)
+                        if (ox != 0 || oy != 0) spriteBatch.DrawString(_font, _text, at + new Vector2(ox, oy), Color.Black * fade);
+                spriteBatch.DrawString(_font, _text, at, _textColor * fade);
+                return;
+            }
             var size = new Vector2(_showing.Width, _showing.Height) * Scale;
             spriteBatch.Draw(_showing, new Vector2(Game1.VirtualWidth / 2f - size.X / 2, y), null, Color.White * fade, 0f, Vector2.Zero, Scale, SpriteEffects.None, 0f);
         }

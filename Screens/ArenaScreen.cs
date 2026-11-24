@@ -287,7 +287,7 @@ namespace Runner_Game.Screens
                 MenuButton.Trigger(new Rectangle(ScreenManager.GraphicsDevice.Viewport.Width - 64, 12, 48, 48));
                 _flail.Throw(_runner.Facing);
                 _rollSound.PlaySfx(0.8f, 0.3f, 0f);
-                Rumble.Swing();
+                Rumble.Play("flail");
             }
             if (inPit && _weapon != null && _smashLeft == 0 && Controls.IsPressed(PlayerAction.Smash))
             {

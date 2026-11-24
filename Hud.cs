@@ -34,6 +34,16 @@ namespace Runner_Game
         /// <summary>
         /// Round dot with a black outline (the shop's "equipped" marker)
         /// </summary>
+        // Small dark pill with a controller button name in it, like "RT"
+        public static void PadHint(SpriteBatch spriteBatch, SpriteFont font, string label, Vector2 center, float alpha)
+        {
+            var size = font.MeasureString(label) * 0.3f;
+            var box = new Rectangle((int)(center.X - size.X / 2 - 6), (int)(center.Y - size.Y / 2 - 2), (int)size.X + 12, (int)size.Y + 4);
+            Pill(spriteBatch, new Rectangle(box.X - 1, box.Y - 1, box.Width + 2, box.Height + 2), Color.White * 0.8f * alpha);
+            Pill(spriteBatch, box, new Color(20, 24, 36) * alpha);
+            spriteBatch.DrawString(font, label, new Vector2(box.X + 6, box.Y + 2), Color.White * alpha, 0f, Vector2.Zero, 0.3f, SpriteEffects.None, 0f);
+        }
+
         public static void Dot(SpriteBatch spriteBatch, Vector2 center, float size, Color color)
         {
             Make(spriteBatch.GraphicsDevice);

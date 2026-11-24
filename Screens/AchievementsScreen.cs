@@ -37,10 +37,17 @@ namespace Runner_Game.Screens
         {
             var mouse = VirtualMouse.GetState();
             bool click = mouse.LeftButton == ButtonState.Pressed && _lastMouse.LeftButton == ButtonState.Released;
+            if (mouse.Position != _lastMouse.Position) _pick = BackButton.Contains(mouse.Position) ? 0 : StatsButton.Contains(mouse.Position) ? 1 : _pick;
             _lastMouse = mouse;
-            if (input.IsNewKeyPress(Keys.Tab) || input.IsNewKeyPress(Keys.Q) || input.IsNewKeyPress(Keys.E) || input.IsNewButtonPress(Buttons.LeftShoulder) || input.IsNewButtonPress(Buttons.RightShoulder) || (click && StatsButton.Contains(mouse.Position)))
+            // Left / Right (d-pad, stick) picks Back or Stats, Enter / A presses the picked one
+            int was = _pick;
+            if (input.IsNewKeyPress(Keys.Left)) _pick = 0;
+            if (input.IsNewKeyPress(Keys.Right)) _pick = 1;
+            if (_pick != was) Sfx.Play("menu_move", 0.4f, 0f);
+            bool press = input.IsNewKeyPress(Keys.Enter);
+            if (input.IsNewKeyPress(Keys.Tab) || input.IsNewKeyPress(Keys.Q) || input.IsNewKeyPress(Keys.E) || input.IsNewButtonPress(Buttons.LeftShoulder) || input.IsNewButtonPress(Buttons.RightShoulder) || (click && StatsButton.Contains(mouse.Position)) || (press && _pick == 1))
             { _stats = !_stats; Sfx.UiPick(); }
-            else if (input.IsNewKeyPress(Keys.Escape) || input.IsNewKeyPress(Keys.Enter) || input.IsNewButtonPress(Buttons.Back) || (click && BackButton.Contains(mouse.Position)))
+            else if (input.IsNewKeyPress(Keys.Escape) || input.IsNewButtonPress(Buttons.Back) || (click && BackButton.Contains(mouse.Position)) || (press && _pick == 0))
                 { Sfx.UiBack(); ExitScreen(); }
         }
 
@@ -69,14 +76,15 @@ namespace Runner_Game.Screens
                 Text(reward, new Vector2(717 - font.MeasureString(reward).X * 0.3f, y + 4), got ? Color.LimeGreen : Color.Cyan * 0.7f, 0.3f);
             }
 
-            Button(BackButton, "Back");
-            Button(StatsButton, _stats ? "Trophies" : "Stats");
+            Button(BackButton, "Back", _pick == 0);
+            Button(StatsButton, _stats ? "Trophies" : "Stats", _pick == 1);
             spriteBatch.End();
         }
 
-        private void Button(Rectangle rect, string label)
+        private int _pick;  // 0 = Back, 1 = Stats
+        private void Button(Rectangle rect, string label, bool picked)
         {
-            bool hover = rect.Contains(VirtualMouse.GetState().Position);
+            bool hover = rect.Contains(VirtualMouse.GetState().Position) || picked;
             MenuButton.Draw(ScreenManager.SpriteBatch, _button, rect, MenuButton.Tint(hover) * TransitionAlpha);
             var size = ScreenManager.MenuFont.MeasureString(label) * 0.6f;
             Text(label, new Vector2(rect.Center.X - size.X / 2, rect.Center.Y - size.Y / 2), hover ? Color.Yellow : Color.White, 0.6f);

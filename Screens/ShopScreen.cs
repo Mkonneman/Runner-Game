@@ -409,6 +409,9 @@ namespace Runner_Game.Screens
             int shown = -1;
             for (int i = 0; i < items.Length; i++)
                 if (Showing(i) && PanelRectangle(i).Contains(mouse)) { shown = i; break; }
+            bool padPick = Controls.UsingPad && _row >= 0 && _row < ItemRows && SelectedIndex >= 0 && SelectedIndex < items.Length && Showing(SelectedIndex);
+            if (padPick) Hud.PadHint(spriteBatch, font, "RT", new Vector2(PanelRectangle(SelectedIndex).Right - 14, PanelRectangle(SelectedIndex).Y + 10), TransitionAlpha);
+            if (padPick && GamePad.GetState(PlayerIndex.One).Triggers.Right > 0.5f) { shown = SelectedIndex; mouse = PanelRectangle(shown).Center; }
             if (shown < 0 && compare && _row >= 0 && _row < ItemRows && SelectedIndex >= 0 && SelectedIndex < items.Length) { shown = SelectedIndex; mouse = PanelRectangle(shown).Center; }
             if (shown >= 0) DrawUpgradePath(items[shown], mouse, compare);
 

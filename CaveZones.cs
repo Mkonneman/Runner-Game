@@ -23,13 +23,20 @@ namespace Runner_Game
             (0f, Color.White, 0f),                    // blue (the art as is)
             (175f, new Color(255, 140, 40), 0.5f),    // orange
             (-95f, new Color(110, 255, 120), 0.4f),   // green
+            // Endless only, each plays like the story cave at the same spot (amethyst = blue, crimson = ember, gold = moss)
+            (55f, new Color(190, 110, 255), 0.45f),   // amethyst
+            (140f, new Color(255, 70, 70), 0.5f),     // crimson
+            (-160f, new Color(255, 210, 80), 0.5f),   // gold
         };
 
-        public static int Count => Zones.Length;
+        public const int StoryCount = 3;  // the normal run is blue, ember, moss, then the door
+        public static bool Endless;       // set by the title's Endless button, Play Again keeps it
+        public static int Count => Endless ? Zones.Length : StoryCount;
+        public static int Kind(int zone) => zone % StoryCount;  // which story cave's hazards / music a zone uses
 
         // For the progress bar at the top
-        public static readonly Color[] BarColors = { new(80, 140, 255), new(255, 140, 40), new(110, 230, 120) };
-        public static readonly string[] Names = { "Blue Cave", "Ember Cave", "Moss Cave" };
+        public static readonly Color[] BarColors = { new(80, 140, 255), new(255, 140, 40), new(110, 230, 120), new(180, 110, 255), new(255, 70, 70), new(255, 210, 80) };
+        public static readonly string[] Names = { "Blue Cave", "Ember Cave", "Moss Cave", "Amethyst Cave", "Crimson Cave", "Gold Cave" };
 
         /// <summary>
         /// Which zone you're in, which one it's fading to, and how far along the fade is (0 to 1)
@@ -37,8 +44,9 @@ namespace Runner_Game
         public static (int From, int To, float Blend) At(float time)
         {
             int zone = (int)(time / ZoneLength);
-            if (zone >= Zones.Length - 1) return (Zones.Length - 1, Zones.Length - 1, 0f);  // last color sticks
             float blend = MathHelper.Clamp((time - zone * ZoneLength - (ZoneLength - FadeTime)) / FadeTime, 0f, 1f);
+            if (Endless) return (zone % Count, (zone + 1) % Count, blend);  // loops through every color forever
+            if (zone >= Count - 1) return (Count - 1, Count - 1, 0f);  // last color sticks
             return (zone, zone + 1, blend);
         }
 

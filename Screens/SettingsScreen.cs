@@ -146,7 +146,7 @@ namespace Runner_Game.Screens
                 case 1: Settings.SfxVolume = Step(Settings.SfxVolume, 0.1f * direction); _testSound.PlaySfx(); break;
                 case 2: Settings.UiVolume = Step(Settings.UiVolume, 0.1f * direction); Sfx.Play("menu_pick", 0.6f, 0f); break;
                 case 3: Settings.ShakeAmount = Step(Settings.ShakeAmount, 0.25f * direction); break;
-                case 4: Settings.Rumble = Step(Settings.Rumble, 0.25f * direction); Rumble.Pulse(0.6f, 0.6f, 0.25f); break;
+                case 4: Settings.Rumble = Step(Settings.Rumble, 0.25f * direction); Rumble.Play("test"); break;
                 case 5: Settings.HitStop = !Settings.HitStop; break;
                 case 6: Settings.SmashRingOpacity = Step(Settings.SmashRingOpacity, 0.25f * direction); break;
                 case 7: Settings.SkinFxAmount = Step(Settings.SkinFxAmount, 0.25f * direction); break;

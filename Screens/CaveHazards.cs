@@ -111,7 +111,7 @@ namespace Runner_Game.Screens
         private void UpdateHazards(float dt)
         {
             float width = ScreenManager.GraphicsDevice.Viewport.Width;
-            int cave = CaveZones.At(_scrollTime).From;
+            int cave = CaveZones.Kind(CaveZones.At(_scrollTime).From);  // endless colors get their story cave's hazards
             var body = _runner.Bounds;
             float me = body.X + body.Width / 2;
 
@@ -194,7 +194,7 @@ namespace Runner_Game.Screens
                             RunStats.Hurt();
                             _crashSound.PlaySfx(0.4f, -0.5f, 0f);
                             Shake(4f, 0.2f);
-                            Rumble.Pulse(0.5f, 0.3f, 0.2f);
+                            Rumble.Play("vine_grab");
                         }
                         else if (vine.Len >= MathF.Min(Vector2.Distance(VineAnchor(vine), vine.Aim) + 40, VineReach)) { vine.Phase = 4; vine.T = 0; }  // missed
                         break;
@@ -249,7 +249,7 @@ namespace Runner_Game.Screens
                     Sfx.Play("double_jump", 0.5f, 0.05f);  // boing
                     _score += Points(BouncePoints);
                     for (int k = 0; k < 6; k++) _hoverDust.PlaceDust(new Vector2(x + RandomHelper.NextFloat(-40, 40), capTop + 8), MushroomColor);  // spores puff off the cap
-                    Rumble.Pulse(0.2f, 0.5f, 0.12f);
+                    Rumble.Play("mushroom");
                 }
                 _mushrooms[m] = (x, squash);
                 if (x < -60) _mushrooms.RemoveAt(m);
@@ -258,6 +258,7 @@ namespace Runner_Game.Screens
 
         private void BreakIcicle(int i, bool smashed)
         {
+            Rumble.Play("icicle");
             var center = Middle(IceBounds(_icicles[i]));
             _crash.PlaceCrash(center, IceColor);
             for (int k = 0; k < 8; k++) _hoverDust.PlaceDust(center + new Vector2(RandomHelper.NextFloat(-30, 30), RandomHelper.NextFloat(-30, 30)), Color.White);  // sparkly bits
