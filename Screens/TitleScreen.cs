@@ -30,7 +30,7 @@ namespace Runner_Game.Screens
         // The player running on the title
         private Runner _runner;
         private const float GroundY = 408f;      // top of the ground layer
-        private const float RunnerStartX = 200f;
+        private const float RunnerStartX = 250f;  // just past the button column so he stays in view
         private const float CaveMouthX = 552f;   // middle of the cave opening
         private const float RunSpeed = 220f;     // same as the ground so his steps match
         private const float Rush = 1.8f;         // the walk into the cave plays this much faster so it doesnt drag
@@ -50,15 +50,77 @@ namespace Runner_Game.Screens
 
         // Stone buttons in a row under the logo (click them, or Tab for the shop)
         private int _selectedButton = -1;  // which button the keys / controller picked (-1 means none, Enter just plays)
-        private static readonly Rectangle ShopButton = new Rectangle(197, 275, 140, 48);
-        private static readonly Rectangle GearButton = new Rectangle(357, 275, 140, 48);
-        private static readonly Rectangle TrophyButton = new Rectangle(517, 275, 140, 48);
-        private static readonly Rectangle HowToPlayButton = new Rectangle(12, 424, 170, 44);  // tucked in the bottom left
-        private static readonly Rectangle SettingsButton = new Rectangle(702, 424, 140, 44);
-        private static readonly Rectangle EndlessButton = new Rectangle(357, 333, 140, 44);  // shows up once the golem is beaten, mouse only
+        // All the buttons stacked down the left edge, centered top to bottom (Endless slots in once the golem is beaten)
+        private static Rectangle Stacked(int slot)
+        {
+            int count = Achievements.Has("golem") ? 6 : 5;
+            const int H = 44, Gap = 10;
+            return new Rectangle(14, (480 - (count * H + (count - 1) * Gap)) / 2 + slot * (H + Gap), 170, H);
+        }
+        private static bool EndlessOn => Achievements.Has("golem");
+        private static Rectangle ShopButton => Stacked(0);
+        private static Rectangle GearButton => Stacked(1);
+        private static Rectangle TrophyButton => Stacked(2);
+        private static Rectangle EndlessButton => Stacked(3);
+        private static Rectangle HowToPlayButton => Stacked(EndlessOn ? 4 : 3);
+        private static Rectangle SettingsButton => Stacked(EndlessOn ? 5 : 4);
+        private static Rectangle[] ButtonRects => new[] { ShopButton, GearButton, HowToPlayButton, SettingsButton, TrophyButton, EndlessButton };  // same order as the button indexes
+
+        // Arrow / d-pad step: the closest button that way (straight lines win over diagonals), up off the top goes back to Play
+        private static int Step(int from, Point dir, bool endless)
+        {
+            if (from < 0) return dir.Y > 0 || dir.X != 0 ? 0 : -1;
+            var c = ButtonRects[from].Center;
+            int best = -1; float bestScore = float.MaxValue;
+            for (int i = 0; i < ButtonRects.Length; i++)
+            {
+                if (i == from || (i == 5 && !endless)) continue;
+                var d = ButtonRects[i].Center - c;
+                float along = d.X * dir.X + d.Y * dir.Y, side = MathF.Abs(d.X * dir.Y) + MathF.Abs(d.Y * dir.X);
+                if (along > 0 && along + side * 2 < bestScore) { bestScore = along + side * 2; best = i; }
+            }
+            return best >= 0 ? best : dir.Y < 0 ? -1 : from;
+        }
         private Texture2D _button;
-        private Texture2D _shopIcon;  // gem pouch with a hammer and gear (oooh)
-        private Texture2D _settingsIcon, _helpIcon;  // cog and ?
+        private Texture2D _panel;  // backing behind the buttons, rebuilt if Endless shows up and the column grows
+
+        // Rounded trapezoid turned on its side: full height on the left, inset top and bottom on the right
+        private Texture2D BuildPanel(int w, int h)
+        {
+            const float R = 18, Inset = 22;
+            var pts = new[] { new Vector2(R, R), new Vector2(w - R, R + Inset), new Vector2(w - R, h - R - Inset), new Vector2(R, h - R) };
+            var data = new Color[w * h];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    var p = new Vector2(x + 0.5f, y + 0.5f);
+                    float dist = 0; bool inside = true;
+                    for (int i = 0; i < 4; i++)
+                    {
+                        Vector2 a = pts[i], b = pts[(i + 1) % 4], e = b - a;
+                        if (e.X * (p.Y - a.Y) - e.Y * (p.X - a.X) < 0) inside = false;  // clockwise in screen space, so outside is negative
+                    }
+                    if (!inside)
+                    {
+                        dist = float.MaxValue;
+                        for (int i = 0; i < 4; i++)
+                        {
+                            Vector2 a = pts[i], b = pts[(i + 1) % 4], e = b - a;
+                            float t = MathHelper.Clamp(Vector2.Dot(p - a, e) / e.LengthSquared(), 0, 1);
+                            dist = MathF.Min(dist, Vector2.Distance(p, a + e * t));
+                        }
+                    }
+                    if (dist > R) continue;
+                    var fill = new Color(8, 14, 28) * 0.72f;
+                    var rim = new Color(70, 170, 210) * 0.55f;
+                    data[y * w + x] = dist > R - 2 ? rim : fill;
+                }
+            var tex = new Texture2D(ScreenManager.GraphicsDevice, w, h);
+            tex.SetData(data);
+            return tex;
+        }
+        private SpriteFont _leaderFont;  // Pixel Operator Bold, chunky enough for the score lists
+        private readonly System.Collections.Generic.Dictionary<string, Texture2D> _icons = new();  // dark blue rock icon for each button, title screen only
         private Texture2D _logo;
 
         // Logo flair, embers drift up off it and little twinkles pop on the letters (pos, vel, age, life, twinkle?, color)
@@ -86,15 +148,15 @@ namespace Runner_Game.Screens
             _cave = content.Load<Texture2D>("Images/Menu/menu_cave");
             _pixel = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
-            _button = content.Load<Texture2D>("Images/Menu/button");
-            _shopIcon = content.Load<Texture2D>("Images/Menu/shop_icon");
-            _settingsIcon = content.Load<Texture2D>("Images/Menu/settings_icon");
-            _helpIcon = content.Load<Texture2D>("Images/Menu/help_icon");
+            _button = content.Load<Texture2D>("Images/Menu/title_button");
+            _leaderFont = content.Load<SpriteFont>("Fonts/LeaderFont");  // the other screens keep the old button
+            foreach (var (label, file) in new[] { ("Shop", "shop"), ("Gear", "gear"), ("Trophies", "trophy"), ("How to Play", "help"), ("Settings", "settings"), ("Endless", "endless") })
+                _icons[label] = content.Load<Texture2D>("Images/Menu/title_" + file);
             _logo = content.Load<Texture2D>("Images/Menu/logo");
             _glow = content.Load<Texture2D>("Images/Particles/particle");
             _eyeSparks = new SparkParticleSystem(ScreenManager.Game, new Color(255, 60, 40), 1.2f, 0.3f, new Vector2(0, -20), new Vector2(0, -20), wobble: 8, wobbleSpeed: 3);
             _eyeSparks.Initialize();
-            _titleMusic = content.Load<Song>("Audio/Music/eraser");
+            _titleMusic = content.Load<Song>("Audio/Music/title_screen");  // new title theme
 
             // Same runner as the game
             _runner = new Runner();
@@ -192,29 +254,18 @@ namespace Runner_Game.Screens
             // Keep the title music going while the title is showing
             // (it gets stopped when the player crashes, and the boss song keeps playing after the arena so swap that out too)
             // only once nothing is left above it, a run fading out after Play Again would let it steal the new run's song
-            if (!coveredByOtherScreen && !_gameStarted && ScreenManager.GetScreens()[^1] == this && (MediaPlayer.State != MediaState.Playing || MediaPlayer.Queue.ActiveSong != _titleMusic))
-            {
-                MediaPlayer.IsRepeating = true;
-                MediaPlayer.Volume = 0;  // fades in below
-                MediaPlayer.Play(_titleMusic);
-            }
-
-            // Fade the title music in (after the shop or a crash)
-            if (!coveredByOtherScreen) MediaPlayer.Volume = MathF.Min(Settings.MusicVolume, MediaPlayer.Volume + 2f * (float)gameTime.ElapsedGameTime.TotalSeconds);
+            if (!coveredByOtherScreen && !_gameStarted && ScreenManager.GetScreens()[^1] == this) Music.Play(_titleMusic, 2f);
         }
 
         public override void HandleInput(GameTime gameTime, InputState input)
         {
-            // Arrows / d-pad move around the buttons like they sit on screen: Play, then Shop Gear Trophies, then How to Play and Settings in the corners
-            int[] top = { 0, 1, 4 }, bottom = { 2, 3 };
+            // Arrows / d-pad move to the nearest button that way, like they sit on screen
             bool endless = Achievements.Has("golem");
-            int col = Array.IndexOf(top, _selectedButton), corner = Array.IndexOf(bottom, _selectedButton);
             int was = _selectedButton;
-            // Endless (5) sits under Gear once it's unlocked
-            if (input.IsNewKeyPress(Keys.Down)) _selectedButton = _selectedButton < 0 ? 1 : _selectedButton == 1 && endless ? 5 : _selectedButton == 5 ? 2 : col >= 0 ? bottom[col == 2 ? 1 : 0] : _selectedButton;
-            else if (input.IsNewKeyPress(Keys.Up)) _selectedButton = _selectedButton == 5 ? 1 : col >= 0 ? -1 : corner >= 0 ? (endless ? 5 : top[corner == 0 ? 0 : 2]) : -1;
-            else if (input.IsNewKeyPress(Keys.Right)) _selectedButton = col >= 0 ? top[Math.Min(col + 1, 2)] : corner >= 0 ? 3 : 1;
-            else if (input.IsNewKeyPress(Keys.Left)) _selectedButton = col >= 0 ? top[Math.Max(col - 1, 0)] : corner >= 0 ? 2 : 1;
+            if (input.IsNewKeyPress(Keys.Down)) _selectedButton = Step(_selectedButton, new Point(0, 1), endless);
+            else if (input.IsNewKeyPress(Keys.Up)) _selectedButton = Step(_selectedButton, new Point(0, -1), endless);
+            else if (input.IsNewKeyPress(Keys.Right)) _selectedButton = Step(_selectedButton, new Point(1, 0), endless);
+            else if (input.IsNewKeyPress(Keys.Left)) _selectedButton = Step(_selectedButton, new Point(-1, 0), endless);
             if (_selectedButton != was) Sfx.Play("menu_move", 0.4f, 0f);
 
             // Enter / A presses the picked button, or starts the run if none is picked. Space and Start always start
@@ -321,6 +372,11 @@ namespace Runner_Game.Screens
             DrawLeaderboard(spriteBatch, viewport);
 
             // Buttons (lit up when the mouse is over them)
+            // backing panel: tall on the left, a bit shorter on the right
+            var first = Stacked(0); var last = Stacked(EndlessOn ? 5 : 4);
+            var back = new Rectangle(2, first.Y - 24, 198, last.Bottom + 30 - (first.Y - 24));  // extra room so the slanted right side still covers Shop and Settings
+            if (_panel == null || _panel.Height != back.Height) { _panel?.Dispose(); _panel = BuildPanel(back.Width, back.Height); }
+            ScreenManager.SpriteBatch.Draw(_panel, back, Color.White * UiAlpha);
             DrawButton(ShopButton, "Shop", 0);
             DrawButton(GearButton, "Gear", 1);
             DrawButton(HowToPlayButton, "How to Play", 2);
@@ -335,9 +391,9 @@ namespace Runner_Game.Screens
         private void DrawLeaderboard(SpriteBatch spriteBatch, Viewport viewport)
         {
             if (UiAlpha <= 0) return;
-            var font = ScreenManager.MenuFont;
+            var font = _leaderFont;
             const int W = 184, H = 240, Pad = 30, RowH = 13;  // big pad keeps the text off the crystal border
-            var box = new Rectangle(viewport.Width - W - 8, 6, W, H);  // clear of the logo (ends at 558) and the buttons (start at 275)
+            var box = new Rectangle(viewport.Width - W - 8, (viewport.Height - H) / 2, W, H);  // right edge, centered top to bottom
             Hud.Frame(spriteBatch, box, 16, Color.White * 0.95f * UiAlpha);
             Color[] medals = { Color.Gold, new Color(200, 210, 225), new Color(215, 140, 80) };
             void Text(string text, float x, float y, Color color, float scale, bool right = false)
@@ -358,9 +414,11 @@ namespace Runner_Game.Screens
                     Text(i < values.Length ? $"{values[i]}{unit}" : "---", box.Right - Pad, rowY, color, 0.28f, right: true);
                 }
             }
-            List("TOP SCORES", RunStats.TopScores, "", box.Y + 26);
+            List("YOUR TOP RUNS", RunStats.TopScores, "", box.Y + 26);
             spriteBatch.Draw(_pixel, new Rectangle(box.X + Pad, box.Y + 120, W - Pad * 2, 1), Color.Cyan * 0.35f * UiAlpha);  // divider
-            List("FARTHEST RUNS", RunStats.TopMeters, "m", box.Y + 128);
+            Text("GLOBAL STATS", box.X + Pad, box.Y + 128, Color.Cyan, 0.32f);
+            const string Soon = "Coming soon";
+            Text(Soon, box.Center.X - font.MeasureString(Soon).X * 0.3f / 2, box.Y + 168, Color.Gray, 0.3f);
         }
 
         // Where an eye of the cave is on screen (the cave is drawn at the right edge, sitting on the ground)
@@ -381,22 +439,14 @@ namespace Runner_Game.Screens
             // Label shrinks to fit long names like How to Play
             float scale = MathF.Min(0.65f, (button.Width - 28) / font.MeasureString(label).X);
             Vector2 size = font.MeasureString(label) * scale;
-            // Shop, Settings and How to Play get an icon on the left and their text nudged over to make room
-            var icon = label == "Shop" ? _shopIcon : label == "Settings" ? _settingsIcon : label == "How to Play" ? _helpIcon : null;
-            bool hasIcon = icon != null;
-            if (label == "Trophies")  // pixel trophy instead of a texture
+            // Every button gets its rock icon on the left and the text nudged over to make room
+            bool hasIcon = _icons.TryGetValue(label, out var icon);
+            if (hasIcon)
             {
-                scale = MathF.Min(scale, (button.Width - 70) / font.MeasureString(label).X);
+                scale = MathF.Min(scale, (button.Width - 66) / font.MeasureString(label).X);
                 size = font.MeasureString(label) * scale;
-                var spot = MenuButton.Inside(new Rectangle(button.X + 14, button.Center.Y - 14, 32, 31));
-                Achievements.DrawTrophy(ScreenManager.SpriteBatch, _pixel, spot.Location.ToVector2(), UiAlpha, true, 0.9f * spot.Width / 32f);
-                hasIcon = true;
-            }
-            else if (hasIcon)
-            {
-                scale = MathF.Min(scale, (button.Width - 70) / font.MeasureString(label).X);
-                size = font.MeasureString(label) * scale;
-                ScreenManager.SpriteBatch.Draw(icon, MenuButton.Inside(new Rectangle(button.X + 12, button.Center.Y - icon.Height / 2, icon.Width, icon.Height)), Color.White * UiAlpha);
+                var iconRect = MenuButton.Inside(new Rectangle(button.X + 8, button.Center.Y - icon.Height / 2, icon.Width, icon.Height));
+                ScreenManager.SpriteBatch.Draw(icon, iconRect, Color.White * UiAlpha);
             }
             var position = new Vector2(button.Center.X - size.X / 2 + (hasIcon ? 20 : 0), button.Center.Y - size.Y / 2);
             ScreenManager.SpriteBatch.DrawString(font, label, MenuButton.TextPos(position) + new Vector2(2), Color.Black * UiAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);

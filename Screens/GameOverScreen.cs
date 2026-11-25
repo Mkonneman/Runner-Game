@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
+using Microsoft.Xna.Framework.Media;
 using Runner_Game.StateManagement;
 
 namespace Runner_Game.Screens
@@ -25,9 +26,11 @@ namespace Runner_Game.Screens
         private Texture2D _pixel;
 
         // The two stone buttons side by side (click one or use the arrows and Enter)
-        private static readonly string[] Options = { "Play Again", "Shop", "Main Menu" };
+        private static readonly string[] Options = { "Play Again", "Shop", "Main Menu", "Gear" };
+        private static readonly int[] LeftToRight = { 1, 0, 2, 3 };  // how they sit on screen: Shop, Play Again, Main Menu, Gear
         private Texture2D _button;
-        private Texture2D _shopIcon;
+        private Texture2D _shopIcon, _gearIcon;
+        private Texture2D _tablet;  // stone tablet the run stats sit on
         private int _selected;
 
         // Rock puns for rocks (and anything without its own list), random every death
@@ -104,7 +107,7 @@ namespace Runner_Game.Screens
             "Tanning bed: maximum setting.",
             "That's what you get for stealing the spotlight.",
             "Ray-ted zero out of ten.",
-            "Beam me up... oh, it did.",
+            "Beam me up.",
         };
 
         // Beat the golem (not really a death lol)
@@ -343,14 +346,20 @@ namespace Runner_Game.Screens
         {
             _pixel = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
-            _button = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/button");
-            _shopIcon = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/shop_icon");
+            _button = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/title_button");  // same rock button as the main menu
+            _shopIcon = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/title_shop");  // same rock icons as the main menu
+            _gearIcon = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/title_gear");
+            _tablet = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/stat_tablet");
+            // Dust Groove while you look over the run
+            Music.Play(ScreenManager.Game.Content.Load<Song>("Audio/Music/dust_groove"), 3.5f);  // eases in slow, it's a calm one
         }
 
         // Gems count up from 0 with little ticks
         public override void Update(GameTime gameTime, bool otherScreenHasFocus, bool coveredByOtherScreen)
         {
             base.Update(gameTime, otherScreenHasFocus, coveredByOtherScreen);
+            // Back from the shop (it stops the music on the way out), start the groove again
+            if (!coveredByOtherScreen && !IsExiting) Music.Play(ScreenManager.Game.Content.Load<Song>("Audio/Music/dust_groove"), 3.5f);
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _age += dt;
             int target = (int)(_gems * MathHelper.Clamp((_age - 0.5f) / 1.2f, 0, 1));
@@ -366,8 +375,9 @@ namespace Runner_Game.Screens
         {
             int was = _selected;
             // Arrows or WASD move between the buttons
-            if (input.IsNewKeyPress(Keys.Left) || input.IsNewKeyPress(Keys.A)) _selected = Math.Max(_selected - 1, 0);
-            if (input.IsNewKeyPress(Keys.Right) || input.IsNewKeyPress(Keys.D)) _selected = Math.Min(_selected + 1, Options.Length - 1);
+            int spot = Array.IndexOf(LeftToRight, _selected);
+            if (input.IsNewKeyPress(Keys.Left) || input.IsNewKeyPress(Keys.A)) _selected = LeftToRight[Math.Max(spot - 1, 0)];
+            if (input.IsNewKeyPress(Keys.Right) || input.IsNewKeyPress(Keys.D)) _selected = LeftToRight[Math.Min(spot + 1, LeftToRight.Length - 1)];
             bool choose = input.IsNewKeyPress(Keys.Enter) || input.IsNewKeyPress(Keys.Space) || input.IsNewButtonPress(Buttons.Start);
 
             // Hovering a button selects it, clicking it chooses it
@@ -389,16 +399,23 @@ namespace Runner_Game.Screens
 
             if (!choose) return;
             Sfx.Play("menu_pick", 0.5f, 0f);
+            if (_selected == 1) { ScreenManager.AddScreen(new ShopScreen()); return; }  // spend those gems, Back comes right back here
+            if (_selected == 3) { ScreenManager.AddScreen(new GearScreen()); return; }  // same, swap gear then come back
 
             // Both close this screen and the run under it (the title is still underneath)
             ExitScreen();
             _gameplay.ExitScreen();
             if (_selected == 0) { ScreenManager.AddScreen(TitleScreen.NewRun()); Iris.Start(); }  // same circle opening as starting from the title
-            if (_selected == 1) ScreenManager.AddScreen(new ShopScreen());  // spend those gems right away, Back drops you on the title
         }
 
         // Clickable area of a button, both are centered on the screen
-        private Rectangle OptionRectangle(int i) => new Rectangle(ScreenManager.GraphicsDevice.Viewport.Width / 2 - 255 + i * 175, 368, 160, 48);  // 3 buttons centered
+        private static Rectangle OptionRectangle(int i) => i switch
+        {
+            0 => new Rectangle(427 - 175, 284, 165, 48),  // Play Again, just under the gems line
+            2 => new Rectangle(427 + 10, 284, 165, 48),   // Main Menu, next to it
+            1 => new Rectangle(14, 422, 150, 44),         // Shop, bottom left corner
+            _ => new Rectangle(690, 422, 150, 44),        // Gear, bottom right corner
+        };
 
         public override void Draw(GameTime gameTime)
         {
@@ -413,35 +430,50 @@ namespace Runner_Game.Screens
             if (_cleared) DrawCentered("Victory!", 70, Color.Gold, 1.6f, ScreenManager.BigFont);  // beat the golem
             else DrawCentered("You Died", 70, Color.Red, 1.6f, ScreenManager.BigFont);
 
-            // This deaths pun (shrinks if its too wide for the screen)
+            // This deaths pun, kept between the stats tablet and the right edge (splits onto two lines if it's long)
             var font = ScreenManager.MenuFont;
-            DrawCentered(_pun, 143, Color.White, MathF.Min(0.55f, (viewport.Width - 60) / font.MeasureString(_pun).X));
+            const float PunWidth = 854 - 2 * 226;
+            if (font.MeasureString(_pun).X * 0.55f <= PunWidth) DrawCentered(_pun, 143, Color.White, 0.55f);
+            else
+            {
+                int cut = _pun.LastIndexOf(' ', _pun.Length / 2 + 4);
+                if (cut < 0) cut = _pun.IndexOf(' ');
+                string a = cut > 0 ? _pun[..cut] : _pun, b = cut > 0 ? _pun[(cut + 1)..] : "";
+                float scale = MathF.Min(0.5f, PunWidth / MathF.Max(font.MeasureString(a).X, font.MeasureString(b).X));
+                DrawCentered(a, 133, Color.White, scale);
+                DrawCentered(b, 152, Color.White, scale);
+            }
 
             DrawCentered($"Score: {_score}", 180, Color.Yellow, 0.9f, ScreenManager.BigFont);
             if (_newBest) DrawCentered("NEW BEST!", 219, Color.Lerp(Color.Gold, Color.White, 0.5f + 0.5f * MathF.Sin(_age * 8)), 0.5f);
-            else DrawCentered($"Best: {RunStats.Best}", 219, Color.Gold, 0.45f);
+            else DrawCentered($"Best: {RunStats.Best}", 219, Color.Gold, 0.45f, ScreenManager.NumberFont);
             float pop = _gemsShown == _gems && _gems > 0 ? 1f + 0.25f * MathF.Exp(-8f * (_age - 1.7f)) * MathF.Cos((_age - 1.7f) * 25f) : 1f;  // bounces when it lands
-            DrawCentered($"+{_gemsShown} gems", 243, Color.Cyan, 0.6f * MathF.Max(1f, pop));
+            DrawCentered($"+{_gemsShown} gems", 243, Color.Cyan, 0.6f * MathF.Max(1f, pop), ScreenManager.NumberFont);
 
-            // Run stats as a row of little tiles, each one slides up and fades in a beat after the last
-            const int TileW = 112, TileH = 62, Gap = 8;
-            int startX = (viewport.Width - (_stats.Length * TileW + (_stats.Length - 1) * Gap)) / 2;
+            // Run stats on a stone tablet down the left side, like a little leaderboard. Rows fade in one after another
+            var panel = new Rectangle(16, 96, 196, 262);
+            Hud.Frame(spriteBatch, _tablet, 26, panel, 22, Color.White * TransitionAlpha);
+            var labelFont = ScreenManager.Game.Content.Load<SpriteFont>("Fonts/SettingsFont");  // Pixellari reads best small
+            var head = ScreenManager.TitleFont;
+            const string Head = "This Run";
+            spriteBatch.DrawString(head, Head, new Vector2(panel.Center.X - head.MeasureString(Head).X * 0.25f + 1, panel.Y + 22 + 1), Color.Black * TransitionAlpha, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
+            spriteBatch.DrawString(head, Head, new Vector2(panel.Center.X - head.MeasureString(Head).X * 0.25f, panel.Y + 22), Color.Yellow * TransitionAlpha, 0f, Vector2.Zero, 0.5f, SpriteEffects.None, 0f);
+            spriteBatch.Draw(_pixel, new Rectangle(panel.X + 26, panel.Y + 50, panel.Width - 52, 1), Color.Cyan * 0.35f * TransitionAlpha);  // divider
             for (int i = 0; i < _stats.Length; i++)
             {
-                float t = MathHelper.Clamp((_age - 0.3f - i * 0.12f) / 0.3f, 0, 1), ease = 1 - (1 - t) * (1 - t);
+                float t = MathHelper.Clamp((_age - 0.3f - i * 0.12f) / 0.3f, 0, 1);
                 if (t <= 0) continue;
                 var (value, label, color) = _stats[i];
-                var tile = new Rectangle(startX + i * (TileW + Gap), 290 + (int)((1 - ease) * 12), TileW, TileH);
-                Hud.Frame(spriteBatch, tile, 11, Color.White * ease * TransitionAlpha);  // same crystal frame as the shop card
-                Hud.Glow(spriteBatch, new Vector2(tile.Center.X, tile.Y + 22), new Vector2(TileW - 20, 30), color * 0.25f * ease * TransitionAlpha);  // the stat's color glows behind its number
-                var big = ScreenManager.BigFont;
-                float valueScale = MathF.Min(0.5f, (TileW - 30) / big.MeasureString(value).X);
-                var valueSize = big.MeasureString(value) * valueScale;
-                spriteBatch.DrawString(big, value, new Vector2(tile.Center.X - valueSize.X / 2 + 2, tile.Y + 12 + 2), Color.Black * ease * TransitionAlpha, 0f, Vector2.Zero, valueScale, SpriteEffects.None, 0f);
-                spriteBatch.DrawString(big, value, new Vector2(tile.Center.X - valueSize.X / 2, tile.Y + 12), color * ease * TransitionAlpha, 0f, Vector2.Zero, valueScale, SpriteEffects.None, 0f);
-                float labelScale = MathF.Min(0.26f, (TileW - 26) / font.MeasureString(label).X);
-                var labelSize = font.MeasureString(label) * labelScale;
-                spriteBatch.DrawString(font, label, new Vector2(tile.Center.X - labelSize.X / 2, tile.Bottom - labelSize.Y - 11), Color.LightGray * ease * TransitionAlpha, 0f, Vector2.Zero, labelScale, SpriteEffects.None, 0f);
+                float rowY = panel.Y + 60 + i * 30, slide = (1 - t) * -10;
+                if (i % 2 == 0) spriteBatch.Draw(_pixel, new Rectangle(panel.X + 24, (int)rowY - 3, panel.Width - 48, 26), Color.White * 0.04f * t * TransitionAlpha);
+                spriteBatch.DrawString(labelFont, label, new Vector2(panel.X + 30 + slide + 1, rowY + 3 + 1), Color.Black * t * TransitionAlpha, 0f, Vector2.Zero, 0.36f, SpriteEffects.None, 0f);
+                spriteBatch.DrawString(labelFont, label, new Vector2(panel.X + 30 + slide, rowY + 3), Color.LightGray * t * TransitionAlpha, 0f, Vector2.Zero, 0.36f, SpriteEffects.None, 0f);
+                var numbers = ScreenManager.NumberFont;
+                float valueScale = 0.46f;
+                var valueSize = numbers.MeasureString(value) * valueScale;
+                var at = new Vector2(panel.Right - 30 - valueSize.X - slide, rowY + 1);
+                spriteBatch.DrawString(numbers, value, at + new Vector2(1, 2), Color.Black * t * TransitionAlpha, 0f, Vector2.Zero, valueScale, SpriteEffects.None, 0f);
+                spriteBatch.DrawString(numbers, value, at, color * t * TransitionAlpha, 0f, Vector2.Zero, valueScale, SpriteEffects.None, 0f);
             }
 
             // Same stone buttons as the title, the picked one lights up with yellow text
@@ -450,12 +482,20 @@ namespace Runner_Game.Screens
                 var rect = OptionRectangle(i);
                 var buttonFont = ScreenManager.TitleFont;
                 bool selected = i == _selected;
-                spriteBatch.Draw(_button, MenuButton.Squash(rect, selected), (selected ? Color.White : new Color(170, 180, 200)) * TransitionAlpha);
+                bool hot = selected || rect.Contains(VirtualMouse.GetState().Position);
+                MenuButton.Hover(rect, hot);  // grows and bounces like the main menu
+                spriteBatch.Draw(_button, MenuButton.Squash(rect, selected), (hot ? Color.White : new Color(170, 180, 200)) * TransitionAlpha);
                 float scale = MathF.Min(0.65f, (rect.Width - 28) / buttonFont.MeasureString(Options[i]).X);
                 Vector2 size = buttonFont.MeasureString(Options[i]) * scale;
-                // Shop gets the gem pouch on the left and its text nudged over to make room
-                bool hasIcon = Options[i] == "Shop";
-                if (hasIcon) ScreenManager.SpriteBatch.Draw(_shopIcon, MenuButton.Inside(new Rectangle(rect.X + 14, rect.Center.Y - _shopIcon.Height / 2, _shopIcon.Width, _shopIcon.Height)), Color.White * TransitionAlpha);
+                // Shop and Gear get their rock icon on the left and the text nudged over to make room
+                var icon = Options[i] == "Shop" ? _shopIcon : Options[i] == "Gear" ? _gearIcon : null;
+                bool hasIcon = icon != null;
+                if (hasIcon)
+                {
+                    scale = MathF.Min(scale, (rect.Width - 66) / buttonFont.MeasureString(Options[i]).X);
+                    size = buttonFont.MeasureString(Options[i]) * scale;
+                    ScreenManager.SpriteBatch.Draw(icon, MenuButton.Inside(new Rectangle(rect.X + 8, rect.Center.Y - icon.Height / 2, icon.Width, icon.Height)), Color.White * TransitionAlpha);
+                }
                 var position = new Vector2(rect.Center.X - size.X / 2 + (hasIcon ? 20 : 0), rect.Center.Y - size.Y / 2);
                 spriteBatch.DrawString(buttonFont, Options[i], MenuButton.TextPos(position) + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
                 spriteBatch.DrawString(buttonFont, Options[i], MenuButton.TextPos(position), (selected ? Color.Yellow : Color.White) * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);

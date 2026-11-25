@@ -22,17 +22,18 @@ namespace Runner_Game.Screens
         private Texture2D _card;     // crystal card behind each item
         private Gem3D _gem3D;        // the spinning diamond from the caves, next to your gem count
         private Texture2D _button;
+        private Texture2D _rockButton;  // Back gets the main menu rock
+        private SpriteFont _backFont;   // the original Pixellari
         private Texture2D[] _icons;   // one per item, same order as Shop.Items
         private Texture2D _pixel;
 
         // Shop music, the title music fades out then this fades in (sounds so much smoother)
         private Song _shopMusic;
         private SoundEffect _buySound;
-        private const float MusicFadeSpeed = 2f;   // volume per second (half a second each way)
 
         // Flickering lamp glows with green sparks floating up from them
         private Texture2D _glow;
-        private static readonly Vector2[] Lamps = { new(237, 163), new(397, 140), new(497, 252), new(285, 330) };
+        private static readonly Vector2[] Lamps = { new(306, 75), new(218, 79), new(356, 163), new(424, 208) };  // the green lanterns in the cave art (the low one hides behind the shopkeeper)
         private SparkParticleSystem _sparks;
         private float _time;
 
@@ -48,13 +49,12 @@ namespace Runner_Game.Screens
         private const int Columns = 4;
         private const int PanelWidth = 118;
         private const int PanelHeight = 126;
-        private static readonly Rectangle GearButton = new Rectangle(330, 420, 150, 44);
         private static readonly Rectangle BackButton = new Rectangle(684, 420, 150, 44);
         private static Rectangle TabRectangle(int t) => new Rectangle(GridX + t * 126, 60, 120, 38);  // 4 tabs fit across the grid
         private Rectangle PanelRectangle(int i) => new Rectangle(GridX + i % Columns * (PanelWidth + 8), GridY + (i / Columns - _scroll) * (PanelHeight + 6), PanelWidth, PanelHeight);
         private bool Showing(int i) => i / Columns >= _scroll && i / Columns < _scroll + VisibleRows;
         private const int VisibleRows = 2;   // rows of cards on screen, the rest scroll
-        private const int ButtonRow = 100;   // _row for the Gear / Back buttons
+        private const int ButtonRow = 100;   // _row for the Back button
         private int _scroll;                 // first card row showing
 
         // Where the selection is, row -1 is the tabs, 0 and 1 are items, 2 is the bottom buttons
@@ -84,7 +84,7 @@ namespace Runner_Game.Screens
             var content = ScreenManager.Game.Content;
             _background = content.Load<Texture2D>("Images/Shop/shop_bg");
             _merchant = content.Load<Texture2D>("Images/Shop/merchant");
-            _shopMusic = content.Load<Song>("Audio/Music/plunder");
+            _shopMusic = content.Load<Song>("Audio/Music/dust_groove");  // same groove as pause and death
             _buySound = content.Load<SoundEffect>("Audio/Sfx/buy");
             _gem = content.Load<Texture2D>("Images/Shop/gem");
             _card = content.Load<Texture2D>("Images/Shop/item_card");
@@ -95,6 +95,8 @@ namespace Runner_Game.Screens
             _gemGray = new Texture2D(ScreenManager.GraphicsDevice, _gem.Width, _gem.Height);
             _gemGray.SetData(gemPixels);
             _button = content.Load<Texture2D>("Images/Menu/button");
+            _rockButton = content.Load<Texture2D>("Images/Menu/title_button");
+            _backFont = content.Load<SpriteFont>("Fonts/SettingsFont");
             _icons = Array.ConvertAll(Shop.Items, item => content.Load<Texture2D>(item.Icon));
             _pixel = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
@@ -113,17 +115,7 @@ namespace Runner_Game.Screens
             _messageTime -= dt;
 
             // When leaving the shop music fades with the screen, otherwise fade the old song out and ours in
-            if (IsExiting) MediaPlayer.Volume = MathF.Min(MediaPlayer.Volume, TransitionAlpha * Settings.MusicVolume);
-            else if (MediaPlayer.Queue.ActiveSong != _shopMusic || MediaPlayer.State != MediaState.Playing)
-            {
-                MediaPlayer.Volume = MathF.Max(0, MediaPlayer.Volume - MusicFadeSpeed * dt);
-                if (MediaPlayer.Volume == 0 || MediaPlayer.State != MediaState.Playing)
-                {
-                    MediaPlayer.IsRepeating = true;
-                    MediaPlayer.Play(_shopMusic);
-                }
-            }
-            else MediaPlayer.Volume = MathF.Min(Settings.MusicVolume, MediaPlayer.Volume + MusicFadeSpeed * dt);
+            if (!IsExiting) Music.Play(_shopMusic, 3.5f);  // the groove eases in slow
             _time += dt;
 
             // Blink every 2-5 seconds (the eyes go dark while it's below zero)
@@ -144,7 +136,7 @@ namespace Runner_Game.Screens
         }
 
         // Keeps the column inside the row so you never land on an empty spot
-        private int RowLength(int row) => row == ButtonRow ? 2 : row < 0 ? TabNames.Length : Math.Min(Columns, TabItems.Length - row * Columns);
+        private int RowLength(int row) => row == ButtonRow ? 1 : row < 0 ? TabNames.Length : Math.Min(Columns, TabItems.Length - row * Columns);
 
         public override void HandleInput(GameTime gameTime, InputState input)
         {
@@ -208,8 +200,7 @@ namespace Runner_Game.Screens
             for (int t = 0; t < TabNames.Length; t++)
                 if (TabRectangle(t).Contains(mouse.Position) && click) { SwitchTab(t); _row = -1; _col = t; }
             for (int i = 0; i < TabItems.Length; i++) if (Showing(i)) Hover(PanelRectangle(i), i / Columns, i % Columns);
-            Hover(GearButton, ButtonRow, 0);
-            Hover(BackButton, ButtonRow, 1);
+            Hover(BackButton, ButtonRow, 0);
 
             // Esc always leaves
             if (input.IsNewKeyPress(Keys.Escape) || input.IsNewButtonPress(Buttons.Back))
@@ -221,11 +212,7 @@ namespace Runner_Game.Screens
             if (!choose) return;
 
             if (_row < 0) { _row = 0; _col = 0; }
-            else if (_row == ButtonRow)
-            {
-                if (_col == 0) { Sfx.UiPick(); ScreenManager.AddScreen(new GearScreen()); }
-                else { Sfx.UiBack(); ExitScreen(); }
-            }
+            else if (_row == ButtonRow) { Sfx.UiBack(); ExitScreen(); }
             else if (SelectedIndex >= 0 && SelectedIndex < TabItems.Length) TryBuy(TabItems[SelectedIndex]);
         }
 
@@ -262,8 +249,8 @@ namespace Runner_Game.Screens
 
         public override void Unload()
         {
-            // The title starts its own music again (fading in) once the shop is gone
-            MediaPlayer.Stop();
+            // Fades out, whatever's underneath (title or the death screen) brings its own song back
+            Music.Stop();
         }
 
         public override void Draw(GameTime gameTime)
@@ -274,7 +261,7 @@ namespace Runner_Game.Screens
 
             // PointClamp keeps the pixel art sharp
             spriteBatch.Begin(samplerState: SamplerState.PointClamp);
-            spriteBatch.Draw(_background, new Rectangle(0, 0, Game1.VirtualWidth, Game1.VirtualHeight), fade);  // art is 800 wide, stretched a lil to fill 16:9
+            spriteBatch.Draw(_background, new Rectangle(0, 0, Game1.VirtualWidth, Game1.VirtualHeight), fade);  // art is already 854x480
 
             // Breathing, he stretches up and down slowly from his feet (Kinda creepy, I love it)
             float breath = 1f + 0.015f * MathF.Sin(_time * 2.2f);
@@ -298,20 +285,24 @@ namespace Runner_Game.Screens
 
             _sparks.Opacity = TransitionAlpha;
             _sparks.Draw(gameTime);
-            _gem3D.Draw(new Vector2(36, 34), 13, _time * 2f, Matrix.Identity, TransitionAlpha);
+
+            // Gem counter box, drawn before the gem so the gem sits on its left end
+            string gems = Shop.Gems.ToString();
+            var small = ScreenManager.SmallFont;
+            const float GemTextScale = 0.6f;
+            var gemBox = new Rectangle(30, 20, (int)(small.MeasureString(gems).X * GemTextScale) + 50, 28);
+            spriteBatch.Begin(samplerState: SamplerState.PointClamp);
+            Hud.Pill(spriteBatch, new Rectangle(gemBox.X - 2, gemBox.Y - 2, gemBox.Width + 4, gemBox.Height + 4), Color.Lerp(Color.Cyan, Color.White, 0.3f) * 0.85f * TransitionAlpha);
+            Hud.Pill(spriteBatch, gemBox, new Color(14, 20, 38) * TransitionAlpha);
+            spriteBatch.End();
+            _gem3D.Draw(new Vector2(gemBox.X + 6, gemBox.Center.Y - 4), 22, _time * 2f, Matrix.Identity, TransitionAlpha);  // big, hides the left end of the box
 
             spriteBatch.Begin(samplerState: SamplerState.PointClamp);
 
-            // Gems in the top left
-            // Gem count with a black outline, a drop shadow and a soft cyan glow so it pops off the background
-            string gems = Shop.Gems.ToString();
-            var gemsPos = new Vector2(60, 14);
-            Hud.Glow(spriteBatch, gemsPos + font.MeasureString(gems) * 0.4f, font.MeasureString(gems) * 0.8f + new Vector2(30, 10), Color.Cyan * 0.25f * TransitionAlpha);
-            spriteBatch.DrawString(font, gems, gemsPos + new Vector2(3, 4), Color.Black * 0.6f * TransitionAlpha, 0f, Vector2.Zero, 0.8f, SpriteEffects.None, 0f);
-            for (int ox = -2; ox <= 2; ox += 2)
-                for (int oy = -2; oy <= 2; oy += 2)
-                    if (ox != 0 || oy != 0) spriteBatch.DrawString(font, gems, gemsPos + new Vector2(ox, oy), Color.Black * TransitionAlpha, 0f, Vector2.Zero, 0.8f, SpriteEffects.None, 0f);
-            spriteBatch.DrawString(font, gems, gemsPos, Color.Lerp(Color.Cyan, Color.White, 0.25f) * TransitionAlpha, 0f, Vector2.Zero, 0.8f, SpriteEffects.None, 0f);
+            // Gem count inside its box, right of the gem
+            var gemsPos = new Vector2(gemBox.X + 34, gemBox.Center.Y - small.MeasureString(gems).Y * GemTextScale / 2);
+            spriteBatch.DrawString(small, gems, gemsPos + new Vector2(1, 2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, GemTextScale, SpriteEffects.None, 0f);
+            spriteBatch.DrawString(small, gems, gemsPos, Color.Lerp(Color.Cyan, Color.White, 0.35f) * TransitionAlpha, 0f, Vector2.Zero, GemTextScale, SpriteEffects.None, 0f);
             DrawText("Shop", new Vector2(GridX + 250 - ScreenManager.TitleFont.MeasureString("Shop").X * 0.4f, 4), Color.Yellow, 0.8f, ScreenManager.TitleFont);
 
             // Tabs, the open one is bright
@@ -386,7 +377,7 @@ namespace Runner_Game.Screens
             // What the picked thing does (or the last buy message)
             string info = _messageTime > 0 ? _message
                 : SelectedIndex >= 0 && SelectedIndex < items.Length ? ItemInfo(items[SelectedIndex])
-                : _row == ButtonRow ? (_col == 0 ? "Equip your gear" : "Back to the title")
+                : _row == ButtonRow ? "Back"
                 : "Q / E (or LB / RB) to switch tabs";
             Hud.ScrollBar(spriteBatch, new Rectangle(GridX + Columns * (PanelWidth + 8) - 2, GridY + 4, 6, VisibleRows * (PanelHeight + 6) - 14), _scroll, VisibleRows, ItemRows, Color.Lerp(Color.Cyan, Color.White, 0.4f), TransitionAlpha);  // only shows when there's more
             int infoY = GridY + Math.Min(ItemRows, VisibleRows) * (PanelHeight + 6) + 2;
@@ -394,8 +385,7 @@ namespace Runner_Game.Screens
             spriteBatch.Draw(_pixel, new Rectangle(GridX, infoY, 500, 44), Color.Black * 0.7f * TransitionAlpha);
             DrawText(info, new Vector2(GridX + 10, infoY + 3), Color.White, infoScale);
 
-            DrawButton(GearButton, "Gear", _row == ButtonRow && _col == 0);
-            DrawButton(BackButton, "Back", _row == ButtonRow && _col == 1);
+            DrawButton(BackButton, "Back", _row == ButtonRow, rock: true);
 
             // Spinning 3D gems by the prices (3D has to go between sprite batches), then the popup over everything
             spriteBatch.End();
@@ -497,11 +487,12 @@ namespace Runner_Game.Screens
         }
 
         // Stone button with centered text
-        private void DrawButton(Rectangle rect, string label, bool selected, Color? textColor = null)
+        private void DrawButton(Rectangle rect, string label, bool selected, Color? textColor = null, bool rock = false)
         {
-            MenuButton.Draw(ScreenManager.SpriteBatch, _button, rect, MenuButton.Tint(selected) * TransitionAlpha);
-            var size = ScreenManager.MenuFont.MeasureString(label) * 0.5f;
-            DrawText(label, new Vector2(rect.Center.X - size.X / 2, rect.Center.Y - size.Y / 2), textColor ?? (selected ? Color.Yellow : Color.White), 0.5f);
+            var font = rock ? _backFont : ScreenManager.MenuFont;
+            MenuButton.Draw(ScreenManager.SpriteBatch, rock ? _rockButton : _button, rect, MenuButton.Tint(selected) * TransitionAlpha);
+            var size = font.MeasureString(label) * 0.5f;
+            DrawText(label, new Vector2(rect.Center.X - size.X / 2, rect.Center.Y - size.Y / 2), textColor ?? (selected ? Color.Yellow : Color.White), 0.5f, font);
         }
 
         // Where an eye ends up on screen after the breathing stretch

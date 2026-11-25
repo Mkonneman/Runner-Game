@@ -25,8 +25,6 @@ namespace Runner_Game.Screens
 
         // Audio Handling for the game
         private Song _runnerMusic;
-        private Song _nextSong;           // next cave's song, waiting for the old one to fade out
-        private float _musicFade = 1f;    // dips to 0 while the songs swap
         // Each cave's song, blue / ember / moss
         private static readonly string[] CaveSongs = { "court_death", "cave_level_loop", "dripping_dangers" };
         public static string CaveSong(int zone) => "Audio/Music/" + CaveSongs[CaveZones.Kind(Math.Max(0, zone))];  // endless colors use their story cave's song
@@ -381,13 +379,13 @@ namespace Runner_Game.Screens
             _runner.DashCooldown = Shop.Value(ItemId.Dash);
             if (_armor == ItemId.SpringBoots) _runner.JumpBoost = Shop.Value(ItemId.SpringBoots);
             Shop.ApplyBoots(_runner);
-            _abilityCooldown = _ability switch { ItemId.PatchUp => 20f, ItemId.BubbleShield => 15f, ItemId.TimeSlow => 20f, ItemId.RocketLauncher => MathF.Abs(Shop.Value(ItemId.RocketLauncher)), _ => 1f };
+            _abilityCooldown = _ability switch { ItemId.PatchUp => 25f, ItemId.BubbleShield => 15f, ItemId.TimeSlow => 20f, ItemId.RocketLauncher => MathF.Abs(Shop.Value(ItemId.RocketLauncher)), _ => 1f };
             _weaponIcon = _smashIcon;  // HUD always shows the blue smash button, whatever weapon is on
             _abilityIcon = _ability == null ? null : _ability == ItemId.Dash ? _dashIcon : _content.Load<Texture2D>("Images/HUD/ability_" + System.IO.Path.GetFileName(Shop.Get(_ability.Value).Icon));  // item art in the same blue frame as the smash button
             if (_weapon == null) _weaponIcon = null;  // empty hands, no smash
 
             // Full health (more with the Miner's Vest)
-            _maxHealth = _armor == ItemId.MinersVest ? Shop.Value(ItemId.MinersVest) : 1f;
+            _maxHealth = Shop.MaxHealth(_armor);
             _health = _maxHealth;
 
             // Particle systems are updated/drawn by this screen instead of Game.Components, this allows the shakes to be applyed
@@ -405,10 +403,8 @@ namespace Runner_Game.Screens
             _embers.Initialize();
 
             // Start the music from the beginning
-            MediaPlayer.IsRepeating = true;
-            MediaPlayer.Volume = Settings.MusicVolume;  // the title may still be fading in
             _runnerMusic = _content.Load<Song>(CaveSong(CaveZones.At(_scrollTime).From));  // a test start in a later cave gets that cave's song
-            MediaPlayer.Play(_runnerMusic);
+            Music.Play(_runnerMusic, 1.5f);
         }
 
         public override void Update(GameTime gameTime, bool otherScreenHasFocus, bool coveredByOtherScreen)
@@ -438,7 +434,8 @@ namespace Runner_Game.Screens
                 _bannerZone = zone;
                 Banner.ShowCave(zone, MathF.Max(0, Iris.Left - 0.2f));  // new cave, drop its name in (the first one waits for the circle to open)
                 var song = _content.Load<Song>(CaveSong(zone));
-                if (song != _runnerMusic) _nextSong = song;  // new cave, new song
+                if (song != _runnerMusic) { _runnerMusic = song; Music.Play(song, 1.5f); }  // new cave, new song (old one fades out first)
+                if (_ability != ItemId.PatchUp && _health < _maxHealth) Heal(_maxHealth);  // cave cleared, patched up to full
             }
 
             // Time Slow halves the world (rocks, spikes, lasers, scrolling) but he still moves full speed
@@ -485,9 +482,7 @@ namespace Runner_Game.Screens
                 if (_pluses[k].Age > PlusLife) _pluses.RemoveAt(k);
             }
             // Changing caves fades the old song out, starts the new one, fades it back in
-            if (_nextSong != null) { if ((_musicFade -= realDt / 0.8f) <= 0) { _runnerMusic = _nextSong; _nextSong = null; MediaPlayer.Play(_runnerMusic); } }
-            else _musicFade = MathF.Min(1, _musicFade + realDt / 0.8f);
-            MediaPlayer.Volume = Settings.MusicVolume * (_slowLeft > 0 ? 0.35f : 1f) * MathF.Max(0, _musicFade);  // music goes quiet and far away during Time Slow
+            Music.Duck = _slowLeft > 0 ? 0.35f : 1f;  // music goes quiet and far away during Time Slow
 
             _scrollTime += dt * _scrollSpeed;
             RunStats.Distance += dt * _scrollSpeed * SpikeSpeed;
@@ -1056,7 +1051,7 @@ namespace Runner_Game.Screens
                     if (MathF.Abs(_runner.Position.X - _doorX) <= 3)
                     {
                         _endPhase = 4;
-                        ScreenManager.AddScreen(new PromptScreen("Something big waits inside...", "Are you ready, or shop first?", "Enter", "Shop first", () => { _endPhase = 5; _endTimer = 0; _shockwaveSound.PlaySfx(0.6f, -0.6f, 0f); }, runMusic: true));  // low rumble once you say go
+                        ScreenManager.AddScreen(new PromptScreen("Something big waits inside...", "Are you ready, or shop first?", "Enter", "Shop first", () => { _endPhase = 5; _endTimer = 0; _shockwaveSound.PlaySfx(0.6f, -0.6f, 0f); }, runMusic: true, thirdLabel: "Gear", third: () => { }));  // low rumble once you say go
                     }
                     break;
                 case 5:
@@ -1321,6 +1316,16 @@ namespace Runner_Game.Screens
 
         // Thin hollow ring (lots of 2px dots packed so close it reads as a solid line)
         private float _ringAlpha = 1f;  // smash ring fade
+        // 1px outline of a hitbox for the Hitboxes setting
+        private void DrawBox(BoundingRectangle b, Color color)
+        {
+            var sb = ScreenManager.SpriteBatch;
+            sb.Draw(_pixel, new Rectangle((int)b.X, (int)b.Y, (int)b.Width, 1), color);
+            sb.Draw(_pixel, new Rectangle((int)b.X, (int)(b.Y + b.Height) - 1, (int)b.Width, 1), color);
+            sb.Draw(_pixel, new Rectangle((int)b.X, (int)b.Y, 1, (int)b.Height), color);
+            sb.Draw(_pixel, new Rectangle((int)(b.X + b.Width) - 1, (int)b.Y, 1, (int)b.Height), color);
+        }
+
         private void DrawDottedCircle(Vector2 center, float radius, Color color)
         {
             int steps = Math.Max(48, (int)(radius * 3.2f));  // about 2px apart
@@ -1457,7 +1462,7 @@ namespace Runner_Game.Screens
             Rumble.Death();
             _drillLoop.Stop();
             _crashSound.PlaySfx();       // Play Crash sound
-            MediaPlayer.Stop();       // Stop the music
+            Music.Stop();             // fade the music out
             _health = 0;              // walls kill outright
             _flashTime = 1f;          // stays red while frozen
             _flashStrength = 1f;
@@ -1478,6 +1483,37 @@ namespace Runner_Game.Screens
             // Smash (Update uses it)
             if (Controls.IsPressed(PlayerAction.Smash)) _smashPressed = true;
 
+        }
+
+        private Texture2D _darkHole;  // black with a soft see-through circle in the middle
+        private const float Darkness = 0.65f, LightRadius = 520f, LightWidth = 950f;  // tall enough for jumps, wide enough to reach both ends of the screen
+
+        private void DrawDarkness(SpriteBatch spriteBatch, Vector2 light, Matrix shake)
+        {
+            if (_darkHole == null)
+            {
+                const int N = 128;
+                var data = new Color[N * N];
+                for (int y = 0; y < N; y++)
+                    for (int x = 0; x < N; x++)
+                    {
+                        float d = Vector2.Distance(new Vector2(x + 0.5f, y + 0.5f), new Vector2(N / 2f)) / (N / 2f);
+                        data[y * N + x] = Color.Black * MathHelper.SmoothStep(0, 1, MathHelper.Clamp((d - 0.3f) / 0.7f, 0, 1));
+                    }
+                _darkHole = new Texture2D(ScreenManager.GraphicsDevice, N, N);
+                _darkHole.SetData(data);
+            }
+            var color = new Color(4, 8, 24) * Darkness * TransitionAlpha;
+            var hole = new Rectangle((int)(light.X - LightWidth), (int)(light.Y - LightRadius), (int)LightWidth * 2, (int)LightRadius * 2);  // stretched into a wide oval
+            var screen = new Rectangle(-60, -60, Game1.VirtualWidth + 120, Game1.VirtualHeight + 120);  // extra so shake never shows an edge
+            spriteBatch.Begin(transformMatrix: shake);
+            spriteBatch.Draw(_darkHole, hole, color);
+            // Plain dark everywhere the circle doesn't reach
+            spriteBatch.Draw(_pixel, new Rectangle(screen.X, screen.Y, screen.Width, Math.Max(0, hole.Y - screen.Y)), color);
+            spriteBatch.Draw(_pixel, new Rectangle(screen.X, hole.Bottom, screen.Width, Math.Max(0, screen.Bottom - hole.Bottom)), color);
+            spriteBatch.Draw(_pixel, new Rectangle(screen.X, hole.Y, Math.Max(0, hole.X - screen.X), hole.Height), color);
+            spriteBatch.Draw(_pixel, new Rectangle(hole.Right, hole.Y, Math.Max(0, screen.Right - hole.Right), hole.Height), color);
+            spriteBatch.End();
         }
 
         public override void Draw(GameTime gameTime)
@@ -1628,8 +1664,18 @@ namespace Runner_Game.Screens
             }
 
             // Hitboxes setting: rock smash circles (yellow when in reach), the smaller circle that hurts you (red), and his box (green)
+            // plus everything else: spikes (red) / walls (orange), hanging gems (pink), lasers (red firing, dim warning), diamonds (white), cave hazards
             if (Settings.ShowHitboxes)
             {
+                foreach (var spike in _spikes) DrawBox(SpikeBounds(spike), (spike.IsWall ? Color.Orange : Color.Red) * TransitionAlpha);
+                foreach (var gem in _gems) DrawBox(GemBounds(gem), Color.HotPink * TransitionAlpha);
+                foreach (var (x, time, bounced) in _lasers)
+                {
+                    bool firing = time >= LaserWarn && time < LaserWarn + LaserFire && !bounced;
+                    DrawBox(new BoundingRectangle(x - LaserWidth / 2, 0, LaserWidth, FloorY), (firing ? Color.Red : Color.Red * 0.3f) * TransitionAlpha);
+                }
+                foreach (var d in _diamonds) DrawBox(new BoundingRectangle(d.X - 10, d.Y - 10, 20, 20), Color.White * TransitionAlpha);
+                DrawHazardHitboxes();
                 foreach (var bolder in _bolders)
                 {
                     DrawDottedCircle(bolder.Bounds.Center, bolder.Bounds.Radius, (InSmashRange(bolder) ? Color.Yellow : Color.White * 0.5f) * TransitionAlpha);
@@ -1712,9 +1758,12 @@ namespace Runner_Game.Screens
 
             spriteBatch.End();
 
+            // Darkness like the shop: everything dims except a soft circle around his lantern, then the glows below light things back up
+            var flame = LanternHandle() + new Vector2(-MathF.Sin(LanternSwing()), MathF.Cos(LanternSwing())) * 26;
+            DrawDarkness(spriteBatch, flame, shake);
+
             // Lantern light, a flickering warm halo around the flame (looks really cool in the dark)
             spriteBatch.Begin(blendState: BlendState.Additive, transformMatrix: shake);
-            var flame = LanternHandle() + new Vector2(-MathF.Sin(LanternSwing()), MathF.Cos(LanternSwing())) * 26;
             float flicker = (0.85f + 0.1f * MathF.Sin(_lanternTime * 13) + 0.05f * MathF.Sin(_lanternTime * 29)) * walkIn;
             spriteBatch.Draw(_glowTexture, flame, null, new Color(255, 150, 50) * 0.6f * flicker * TransitionAlpha, 0f, new Vector2(8), 14f, SpriteEffects.None, 0f);
             spriteBatch.Draw(_glowTexture, flame, null, new Color(255, 190, 90) * flicker * TransitionAlpha, 0f, new Vector2(8), 6f, SpriteEffects.None, 0f);

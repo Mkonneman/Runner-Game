@@ -65,7 +65,7 @@ namespace Runner_Game
             new() { Id = ItemId.Dash, Name = "Dash", Slot = Slot.Ability, Icon = "Images/Items/dash", Price = 0, UpgradePrice = 30,
                     Values = new[] { 2f, 1.7f, 1.45f, 1.2f }, Show = v => $"Quick burst sideways, {v:0.##}s cooldown" },
             new() { Id = ItemId.PatchUp, Name = "Heal Locket", Slot = Slot.Ability, Icon = "Images/Items/heal_locket", Price = 50, UpgradePrice = 50,
-                    Values = new[] { 0.25f, 0.35f, 0.5f }, Show = v => $"Heals {v * 100:0}% health, 20s cooldown" },
+                    Values = new[] { 0.2f, 0.3f, 0.4f }, Show = v => $"Heals {v * 100:0}% health, 25s cooldown" },
             new() { Id = ItemId.BubbleShield, Name = "Bubble Shield", Slot = Slot.Ability, Icon = "Images/Items/bubble_shield", Price = 150, UpgradePrice = 70,
                     Values = new[] { 3f, 4f, 5f }, Show = v => $"Blocks the next hit for {v:0}s, 15s cooldown" },
             new() { Id = ItemId.TimeSlow, Name = "Time Slow", Slot = Slot.Ability, Icon = "Images/Items/time_slow", Price = 250, UpgradePrice = 100,
@@ -139,6 +139,17 @@ namespace Runner_Game
         public static bool IsMaxed(ItemId id) => Level(id) >= Get(id).MaxLevel;
         public static ItemId? Equipped(Slot slot) => _equipped[(int)slot];
         public static bool IsEquipped(ItemId id) => Equipped(Get(id).Slot) == id;
+
+        // Max health for the armor you have on (1 = 100 HP), heavy stuff is tanky, the fancy perks are fragile
+        public static float MaxHealth(ItemId? armor) => armor switch
+        {
+            ItemId.MinersVest => Value(ItemId.MinersVest),
+            ItemId.CrystalPlate => 1.3f,
+            ItemId.MirrorHelm => 1.1f,
+            ItemId.SpringBoots or ItemId.HoverBoots or ItemId.LuckyCharm => 0.9f,
+            ItemId.PhoenixHeart => 0.8f,
+            _ => 1f,  // Hazard Hat or nothing
+        };
 
         // The stat at the current level (level 1 if you don't own it, so the shop can preview it)
         public static float Value(ItemId id) => Get(id).Values[Math.Max(0, Level(id) - 1)];

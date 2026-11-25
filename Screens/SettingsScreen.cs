@@ -179,7 +179,7 @@ namespace Runner_Game.Screens
         public override void Draw(GameTime gameTime)
         {
             var spriteBatch = ScreenManager.SpriteBatch;
-            var font = ScreenManager.MenuFont;
+            var font = ScreenManager.Game.Content.Load<SpriteFont>("Fonts/SettingsFont");  // settings keeps the original Pixellari, easiest to read here
             var viewport = ScreenManager.GraphicsDevice.Viewport;
             var mouse = VirtualMouse.GetState().Position;
 
@@ -245,7 +245,7 @@ namespace Runner_Game.Screens
         // Text with a shadow
         private void DrawText(string text, Vector2 position, Color color, float scale, SpriteFont font = null)
         {
-            font ??= ScreenManager.MenuFont;
+            font ??= ScreenManager.Game.Content.Load<SpriteFont>("Fonts/SettingsFont");
             ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position) + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
             ScreenManager.SpriteBatch.DrawString(font, text, MenuButton.TextPos(position), color * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
         }

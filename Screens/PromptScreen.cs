@@ -21,7 +21,8 @@ namespace Runner_Game.Screens
         private Song _music;
         private int _choice;
         private MouseState _lastMouse;
-        private static Rectangle Button(int b) => b == 2 ? new Rectangle(327, 316, 200, 36) : new Rectangle(b == 0 ? 252 : 447, 250, 155, 48);
+        private bool Door => _no == null;  // the end door: Shop first and Gear open screens and come back here
+        private Rectangle Button(int b) => b == 2 ? (Door ? new Rectangle(350, 316, 155, 48) : new Rectangle(327, 316, 200, 36)) : new Rectangle(b == 0 ? 252 : 447, 250, 155, 48);
         private int ButtonCount => _third != null ? 3 : 2;
 
         public PromptScreen(string title, string line, string yesLabel, string noLabel, Action yes, Action no = null, bool runMusic = false, string thirdLabel = null, Action third = null)
@@ -45,12 +46,7 @@ namespace Runner_Game.Screens
         {
             base.Update(gameTime, otherScreenHasFocus, coveredByOtherScreen);
             // Back from the shop, the shop stopped the music so start the run music again
-            if (_runMusic && !coveredByOtherScreen && !IsExiting && MediaPlayer.State != MediaState.Playing)
-            {
-                MediaPlayer.IsRepeating = true;
-                MediaPlayer.Volume = Settings.MusicVolume;
-                MediaPlayer.Play(_music);
-            }
+            if (_runMusic && !coveredByOtherScreen && !IsExiting) Music.Play(_music, 1.5f);
         }
 
         public override void HandleInput(GameTime gameTime, InputState input)
@@ -71,7 +67,7 @@ namespace Runner_Game.Screens
             if (!choose) return;
 
             if (_choice == 0 || _no == null) Sfx.UiPick(); else Sfx.UiBack();
-            if (_choice == 1 && _no == null) { ScreenManager.AddScreen(new ShopScreen()); return; }  // stays so you come back to the question
+            if (_choice >= 1 && Door) { ScreenManager.AddScreen(_choice == 1 ? new ShopScreen() : new GearScreen()); return; }  // stays so you come back to the question
             ExitScreen();
             (_choice == 0 ? _yes : _choice == 1 ? _no : _third)();
         }
@@ -87,10 +83,11 @@ namespace Runner_Game.Screens
             for (int b = 0; b < ButtonCount; b++)
             {
                 var rect = Button(b);
-                float scale = b == 2 ? 0.38f : 0.5f;  // the third one is small and quiet
-                MenuButton.Draw(spriteBatch, _button, rect, MenuButton.Tint(_choice == b) * (b == 2 && _choice != 2 ? 0.7f : 1f) * TransitionAlpha);
+                bool quiet = b == 2 && !Door;  // the third one is small and quiet (except the door's Gear)
+                float scale = quiet ? 0.38f : 0.5f;
+                MenuButton.Draw(spriteBatch, _button, rect, MenuButton.Tint(_choice == b) * (quiet && _choice != 2 ? 0.7f : 1f) * TransitionAlpha);
                 var size = ScreenManager.MenuFont.MeasureString(_labels[b]) * scale;
-                Shadowed(_labels[b], new Vector2(rect.Center.X - size.X / 2, rect.Center.Y - size.Y / 2), _choice == b ? Color.Yellow : b == 2 ? Color.LightGray : Color.White, scale, ScreenManager.MenuFont);
+                Shadowed(_labels[b], new Vector2(rect.Center.X - size.X / 2, rect.Center.Y - size.Y / 2), _choice == b ? Color.Yellow : quiet ? Color.LightGray : Color.White, scale, ScreenManager.MenuFont);
             }
             spriteBatch.End();
         }

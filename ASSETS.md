@@ -1,7 +1,8 @@
 Asset Credits
 
 Music (Content/Audio/Music)
-- eraser.wav – Title screen music Orignal composed Music by Gian Hill
+- eraser.wav – Title screen music Orignal composed Music by Gian Hill (replaced by title_screen.ogg)
+- title_screen.ogg – "Title Screen", supplied by the developer (converted from .m4a), plays on the title screen
 - court_death.wav – Cave run music Orignal composed Music by Gian Hill
 - plunder.wav – Shop music Orignal composed Music by Gian Hill
 - cave_level_loop.ogg – Ember cave music ("Cave Level Loop"), Suno AI-generated music, Suno (https://suno.com)
@@ -19,11 +20,19 @@ Sound Effects (Content/Audio/Sfx)
 Fonts (Content/Fonts)
 - alagard.ttf (TitleFont) – "Alagard" by Hewett Tsoi, 100% Free, Dafont (https://www.dafont.com/alagard.font)
 - upheavtt.ttf (BigFont) – "Upheaval" by Brian Kent (Ænigma), freeware for personal and commercial use, Dafont (https://www.dafont.com/upheaval.font) (upheaval.txt kept with it as the author asks)
-- Pixellari.ttf (BodyFont) – "Pixellari" by Zacchary Dempsey-Plante, 100% Free, Dafont (https://www.dafont.com/pixellari.font)
+- dust_groove.ogg – "8-bit Dust Groove", supplied by the developer (converted from .m4a), plays in the shop, pause and death menus
+- minor_motif.ogg – "Minor Motif", supplied by the developer (converted from .m4a), plays on the Gear screen
+- PixelifySans.ttf (BodyFont) – "Pixelify Sans" by Stefie Justprince, SIL Open Font License 1.1, Google Fonts (https://fonts.google.com/specimen/Pixelify+Sans)
+- PixelOperator.ttf (SettingsFont), PixelOperator-Bold.ttf (LeaderFont) – "Pixel Operator" by Jayvee Enaguas (HarvettFox96), CC0 1.0, Dafont (https://www.dafont.com/pixel-operator.font)
+- m5x7.ttf (SmallFont, shop gem counter) – "m5x7" by Daniel Linssen, CC0 1.0 (attribution appreciated), itch.io (https://managore.itch.io/m5x7)
+- Pixellari.ttf (old BodyFont, kept in case we swap back) – "Pixellari" by Zacchary Dempsey-Plante, 100% Free, Dafont (https://www.dafont.com/pixellari.font)
 
 Menu (Content/Images/Menu)
 - golem_rage.png – The golem sheet hue shifted purple with Python/Pillow for his rage phase
 - boomerang_flail.png (Items), flail.png (Gameplay) – Boomerang Flail weapon art (just the boomerang), AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out and shrunk with Python/Pillow
+- title_button.png, title_shop.png, title_gear.png, title_trophy.png, title_help.png, title_settings.png, title_endless.png – Dark blue rock button and icons on the main menu, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out with Python/Pillow
+- gear_bg.png, gear_frame.png, gear_socket.png, gear_cell.png, gear_cell_on.png, gear_portrait.png, gear_heart.png, gear_divider.png – Gear screen inventory set, AI-generated with Google Gemini from prompts written for this game (art direction by the developer), background tinted blue and pieces cut out with Python/Pillow
+- stat_tablet.png – Stone tablet behind the run stats on the death screen, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out with Python/Pillow
 - gear_slot.png, gear_bag.png – Crystal sockets and bag frame on the Gear screen, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out with Python/Pillow
 - item_card.png – Crystal card behind each shop item, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out with Python/Pillow
 - upgrade_panel.png – Crystal frame for the shop upgrade card, the run stat tiles and the leaderboard, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out with Python/Pillow
@@ -33,7 +42,7 @@ Menu (Content/Images/Menu)
 - shop_icon.png – Gem pouch with a hammer and gear on the Shop buttons, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background removed and shrunk with Claude (Anthropic) using Python/Pillow
 
 Shop (Content/Images/Shop)
-- shop_bg.png, merchant.png, gem.png – AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs)
+- shop_bg.png (cave shop, redone), merchant.png, gem.png – AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs)
 - upgrade_boots.png, upgrade_dash.png, upgrade_heart.png, upgrade_hammer.png, upgrade_shield.png, upgrade_points.png – AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs)
 
 Cave Background (Content/Images/Cave)

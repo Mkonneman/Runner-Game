@@ -28,7 +28,9 @@ namespace Runner_Game.StateManagement
         /// <summary>
         /// A SpriteFont shared by all GameScreens
         /// </summary>
-        public SpriteFont MenuFont { get; private set; }   // Pixellari, for anything you actually read
+        public SpriteFont MenuFont { get; private set; }   // Pixelify Sans, for anything you actually read
+        public SpriteFont NumberFont { get; private set; } // Pixel Operator Bold, small numbers that need to read clearly (best, gems, leaderboard)
+        public SpriteFont SmallFont { get; private set; }  // m5x7, little numbers (leaderboard, gem counter)
         public SpriteFont TitleFont { get; private set; }  // Alagard, titles and buttons (fits the dungeon vibe)
         public SpriteFont BigFont { get; private set; }    // Upheaval, big loud stuff like You Died and the score
 
@@ -62,6 +64,8 @@ namespace Runner_Game.StateManagement
             MenuFont = _content.Load<SpriteFont>("Fonts/BodyFont");
             TitleFont = _content.Load<SpriteFont>("Fonts/TitleFont");
             BigFont = _content.Load<SpriteFont>("Fonts/BigFont");
+            SmallFont = _content.Load<SpriteFont>("Fonts/SmallFont");
+            NumberFont = _content.Load<SpriteFont>("Fonts/LeaderFont");
 
             // Tell each of the screens to load thier content
             foreach (var screen in _screens)
@@ -89,6 +93,7 @@ namespace Runner_Game.StateManagement
         {
             // Read in the keyboard and gamepad
             _input.Update();
+            Music.Update((float)gameTime.ElapsedGameTime.TotalSeconds);  // every song switch fades
             Rumble.Update((float)gameTime.ElapsedGameTime.TotalSeconds);
 
             // Make a copy of the screen list, to avoid confusion if

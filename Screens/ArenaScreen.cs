@@ -96,9 +96,7 @@ namespace Runner_Game.Screens
         {
             _content ??= new ContentManager(ScreenManager.Game.Services, "Content");
             // Boss song from the hallway on (loaded on the game's content so unloading the arena can't pull it out from under the player)
-            MediaPlayer.IsRepeating = true;
-            MediaPlayer.Volume = Settings.MusicVolume;
-            MediaPlayer.Play(ScreenManager.Game.Content.Load<Song>("Audio/Music/final_pixel_clash"));
+            Music.Play(ScreenManager.Game.Content.Load<Song>("Audio/Music/final_pixel_clash"), 1.5f);
             _wall = _content.Load<Texture2D>("Images/Arena/cave_wall_grey");
             _pillars = _content.Load<Texture2D>("Images/Arena/cave_pillars_grey");
             _arena = _content.Load<Texture2D>("Images/Arena/arena");
@@ -141,13 +139,13 @@ namespace Runner_Game.Screens
             _golem.Landed = () => { _shakeTime = 0.35f; _thudSound.PlaySfx(0.9f, -0.4f, 0f); for (int k = 0; k < 8; k++) _dust.PlaceDust(_golem.Feet + new Vector2(RandomHelper.NextFloat(-120, 120), -4), new Color(150, 140, 130)); };
             _ability = Shop.Equipped(Slot.Ability);
             _armor = Shop.Equipped(Slot.Armor);
-            _maxHealth = _health = _armor == ItemId.MinersVest ? Shop.Value(ItemId.MinersVest) : 1f;  // same armor perks as the caves
+            _maxHealth = _health = Shop.MaxHealth(_armor);  // same armor perks as the caves
             _golem.Mirror = _armor == ItemId.MirrorHelm;
             _golem.Reflected = () => { _crash.PlaceCrash(_golem.Body.Center, new Color(120, 220, 255)); _score += 25; _mirrorFlash = 0.35f; };
             _golem.FloorAt = sx => Ground + Stepped(_scroll + sx);  // follows the hills
             _golem.Knock = dir => _runner.Knock(dir * 650);
             _golem.Glow = _content.Load<Texture2D>("Images/Particles/particle");
-            _abilityCooldown = _ability switch { ItemId.PatchUp => 20f, ItemId.BubbleShield => 15f, ItemId.TimeSlow => 20f, ItemId.RocketLauncher => MathF.Abs(Shop.Value(ItemId.RocketLauncher)), _ => 1f };
+            _abilityCooldown = _ability switch { ItemId.PatchUp => 25f, ItemId.BubbleShield => 15f, ItemId.TimeSlow => 20f, ItemId.RocketLauncher => MathF.Abs(Shop.Value(ItemId.RocketLauncher)), _ => 1f };
             _abilityIcon = _ability == null ? null : _ability == ItemId.Dash ? _content.Load<Texture2D>("Images/HUD/CooldownShiftButton") : _content.Load<Texture2D>("Images/HUD/ability_" + System.IO.Path.GetFileName(Shop.Get(_ability.Value).Icon));
             _rocketTexture = _content.Load<Texture2D>("Images/Gameplay/rocket");
             _bubbleSound = _content.Load<SoundEffect>("Audio/Sfx/bubble");

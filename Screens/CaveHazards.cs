@@ -12,6 +12,8 @@ namespace Runner_Game.Screens
         private sealed class Icicle { public float X, Y = IceHangY, Wait = -1, Speed, Drop = RandomHelper.NextFloat(200, 260); }  // Wait counts up once it starts shaking, Drop = how close he gets before it lets go
         private sealed class Vine { public float X, T, Len; public int Phase; public Vector2 Aim; }  // phase 0 dangling, 1 winding up, 2 lunging, 3 holding him, 4 pulling back, 5 cut/done
         private readonly List<Icicle> _icicles = new();
+        private sealed class Shard { public Vector2 Pos, Vel; public Rectangle Src; public float Rot, Spin, Life; }
+        private readonly List<Shard> _shards = new();  // bits of a broken icicle, its own art cut up, faded
         private readonly List<Vine> _vines = new();
         private readonly List<(float X, float Squash)> _mushrooms = new();
         private Texture2D _icicleTexture, _vineTexture, _mushroomTexture;
@@ -114,6 +116,15 @@ namespace Runner_Game.Screens
             int cave = CaveZones.Kind(CaveZones.At(_scrollTime).From);  // endless colors get their story cave's hazards
             var body = _runner.Bounds;
             float me = body.X + body.Width / 2;
+
+            for (int s = _shards.Count - 1; s >= 0; s--)
+            {
+                var shard = _shards[s];
+                shard.Vel.Y += 900 * dt;
+                shard.Pos += (shard.Vel - new Vector2(SpikeSpeed, 0)) * dt;  // drifts back with the cave
+                shard.Rot += shard.Spin * dt;
+                if ((shard.Life -= dt * 1.4f) <= 0) _shards.RemoveAt(s);
+            }
 
             // ---- Icicles, blue cave only ----
             _iceTimer -= dt;
@@ -266,6 +277,13 @@ namespace Runner_Game.Screens
             _crashSound.PlaySfx(0.7f, 0.6f, 0f);  // high and glassy
             Shake(smashed ? 6f : 3f, 0.2f);
             if (smashed) { _score += Points(IcePoints); Kick(center, 0.45f); Rumble.RockBreak(); }
+            // Chop the icicle art into a few chunks that tumble off and fade
+            for (int k = 0; k < 7; k++)
+            {
+                int size = RandomHelper.Next(8, 16);
+                var src = new Rectangle(RandomHelper.Next(_icicleTexture.Width / 2 - 14, _icicleTexture.Width / 2 + 14 - size), RandomHelper.Next(10, _icicleTexture.Height - size), size, size);
+                _shards.Add(new Shard { Pos = center + new Vector2(RandomHelper.NextFloat(-12, 12), RandomHelper.NextFloat(-20, 20)), Vel = new Vector2(RandomHelper.NextFloat(-160, 160), RandomHelper.NextFloat(-260, -60)), Src = src, Spin = RandomHelper.NextFloat(-9, 9), Life = 1f });
+            }
             _icicles.RemoveAt(i);
         }
 
@@ -375,6 +393,19 @@ namespace Runner_Game.Screens
                 if (TendrilOut(_vines[v]) && DistToTendril(_vines[v], Middle(band)) < band.Width / 2) BreakVine(v);
         }
 
+        // Hitboxes setting: icicles (cyan), the vine tip that grabs (green), mushroom bounce zone for his feet (magenta)
+        private void DrawHazardHitboxes()
+        {
+            foreach (var ice in _icicles) DrawBox(IceBounds(ice), Color.Cyan * TransitionAlpha);
+            foreach (var vine in _vines)
+            {
+                var tip = VineTip(vine);
+                DrawBox(new BoundingRectangle(tip.X - 6, tip.Y - 6, 12, 12), (vine.Phase == 2 ? Color.Lime : Color.Lime * 0.35f) * TransitionAlpha);  // only grabs while lunging
+            }
+            float capTop = SpikeBottom + 2 - _mushroomTexture.Height;
+            foreach (var (x, _) in _mushrooms) DrawBox(new BoundingRectangle(x - 44, capTop - 4, 88, 40), Color.Magenta * TransitionAlpha);
+        }
+
         private void DrawHazards()
         {
             var sb = ScreenManager.SpriteBatch;
@@ -383,6 +414,8 @@ namespace Runner_Game.Screens
                 float jitter = ice.Wait >= 0 && ice.Wait < IceShakeTime ? MathF.Sin(ice.Wait * 70) * 2.5f : 0;
                 sb.Draw(_icicleTexture, new Vector2(ice.X - _icicleTexture.Width / 2f + jitter, ice.Y), Color.White * TransitionAlpha);
             }
+            foreach (var shard in _shards)
+                sb.Draw(_icicleTexture, shard.Pos, shard.Src, Color.White * 0.55f * shard.Life * TransitionAlpha, shard.Rot, new Vector2(shard.Src.Width / 2f), 1f, SpriteEffects.None, 0f);
             foreach (var vine in _vines)
             {
                 float rustle = vine.Phase == 1 ? MathF.Sin(vine.T * 50) * 2f : 0;  // shivers right before it lunges

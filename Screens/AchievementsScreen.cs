@@ -13,10 +13,11 @@ namespace Runner_Game.Screens
     {
         private Texture2D _pixel, _button;
         private MouseState _lastMouse;
-        private static readonly Rectangle BackButton = new Rectangle(287, 424, 120, 44);
-        private static readonly Rectangle StatsButton = new Rectangle(427, 424, 140, 44);  // flips between trophies and lifetime stats
+        private static readonly Rectangle BackButton = new Rectangle(287, 414, 120, 38);  // up off the bottom of the frame
+        private static readonly Rectangle StatsButton = new Rectangle(427, 414, 140, 38);  // flips between trophies and lifetime stats
         private bool _stats;
-        private const int RowY = 78, RowH = 26;
+        private const int RowY = 74, RowH = 24;
+        private SpriteFont Font => ScreenManager.Game.Content.Load<SpriteFont>("Fonts/SettingsFont");  // the original Pixellari, reads best here
 
         public AchievementsScreen()
         {
@@ -54,11 +55,12 @@ namespace Runner_Game.Screens
         public override void Draw(GameTime gameTime)
         {
             var spriteBatch = ScreenManager.SpriteBatch;
-            var font = ScreenManager.MenuFont;
+            var font = Font;
             float a = TransitionAlpha;
             spriteBatch.Begin(samplerState: SamplerState.PointClamp);
             spriteBatch.Draw(_pixel, new Rectangle(0, 0, 854, 480), Color.Black * 0.5f * a);
-            spriteBatch.Draw(_pixel, new Rectangle(117, 12, 620, 462), new Color(10, 20, 30) * 0.94f * a);
+            spriteBatch.Draw(_pixel, new Rectangle(72, 16, 710, 454), new Color(10, 20, 30) * 0.94f * a);
+            Hud.Frame(spriteBatch, new Rectangle(66, 10, 722, 466), 10, Color.White * a);  // wide enough that every row sits inside  // thin version of the crystal frame
             string title = _stats ? "Lifetime Stats" : $"Achievements  {Achievements.Count}/{Achievements.All.Length}";
             Text(title, new Vector2(427 - ScreenManager.TitleFont.MeasureString(title).X * 0.3f, 20), Color.Yellow, 0.6f, ScreenManager.TitleFont);
 
@@ -68,12 +70,12 @@ namespace Runner_Game.Screens
                 var award = Achievements.All[i];
                 bool got = Achievements.Has(award.Id);
                 int y = RowY + i * RowH;
-                if (i % 2 == 0) spriteBatch.Draw(_pixel, new Rectangle(127, y - 2, 600, RowH), Color.White * 0.04f * a);
-                Achievements.DrawTrophy(spriteBatch, _pixel, new Vector2(138, y), a, got, 0.7f);  // gold or grey
-                Text(award.Name, new Vector2(178, y + 2), got ? new Color(255, 210, 70) : Color.Gray, 0.36f);
-                Text(award.Desc, new Vector2(345, y + 4), got ? Color.White : Color.Gray * 0.8f, 0.3f);
+                if (i % 2 == 0) spriteBatch.Draw(_pixel, new Rectangle(92, y - 2, 670, RowH), Color.White * 0.04f * a);
+                Achievements.DrawTrophy(spriteBatch, _pixel, new Vector2(103, y), a, got, 0.7f);  // gold or grey
+                Text(award.Name, new Vector2(140, y + 2), got ? new Color(255, 210, 70) : Color.Gray, 0.36f);
+                Text(award.Desc, new Vector2(300, y + 4), got ? Color.White : Color.Gray * 0.8f, 0.3f);
                 string reward = (got ? "Got " : "") + $"{award.Gems}g" + (award.Skin is ItemId s ? $" + {Shop.Get(s).Name}" : "");
-                Text(reward, new Vector2(717 - font.MeasureString(reward).X * 0.3f, y + 4), got ? Color.LimeGreen : Color.Cyan * 0.7f, 0.3f);
+                Text(reward, new Vector2(748 - font.MeasureString(reward).X * 0.3f, y + 4), got ? Color.LimeGreen : Color.Cyan * 0.7f, 0.3f);
             }
 
             Button(BackButton, "Back", _pick == 0);
@@ -86,7 +88,7 @@ namespace Runner_Game.Screens
         {
             bool hover = rect.Contains(VirtualMouse.GetState().Position) || picked;
             MenuButton.Draw(ScreenManager.SpriteBatch, _button, rect, MenuButton.Tint(hover) * TransitionAlpha);
-            var size = ScreenManager.MenuFont.MeasureString(label) * 0.6f;
+            var size = Font.MeasureString(label) * 0.6f;
             Text(label, new Vector2(rect.Center.X - size.X / 2, rect.Center.Y - size.Y / 2), hover ? Color.Yellow : Color.White, 0.6f);
         }
 
@@ -107,7 +109,7 @@ namespace Runner_Game.Screens
             };
             const int TileW = 136, TileH = 96, Gap = 12;
             int startX = 427 - (4 * TileW + 3 * Gap) / 2;
-            var big = ScreenManager.BigFont; var font = ScreenManager.MenuFont;
+            var big = ScreenManager.BigFont; var font = Font;
             for (int i = 0; i < tiles.Length; i++)
             {
                 var (value, label, color) = tiles[i];
@@ -130,7 +132,7 @@ namespace Runner_Game.Screens
 
         private void Text(string text, Vector2 position, Color color, float scale, SpriteFont font = null)
         {
-            font ??= ScreenManager.MenuFont;
+            font ??= Font;
             var sb = ScreenManager.SpriteBatch;
             sb.DrawString(font, text, MenuButton.TextPos(position) + new Vector2(2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);
             sb.DrawString(font, text, MenuButton.TextPos(position), color * TransitionAlpha, 0f, Vector2.Zero, MenuButton.TextScale(position, scale), SpriteEffects.None, 0f);

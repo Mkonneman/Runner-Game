@@ -17,6 +17,8 @@ namespace Runner_Game.Screens
         private Texture2D _pixel, _button;
         private int _selected;
         private MouseState _lastMouse;
+        private Song _runSong;          // what the run was playing, comes back on Resume
+        private TimeSpan _runAt;
 
         public PauseScreen(GameScreen run)
         {
@@ -30,10 +32,13 @@ namespace Runner_Game.Screens
         {
             _pixel = new Texture2D(ScreenManager.GraphicsDevice, 1, 1);
             _pixel.SetData(new[] { Color.White });
-            _button = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/button");
+            _button = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/title_button");  // same rock button as the main menu
             _lastMouse = VirtualMouse.GetState();
             Rumble.Stop();
-            MediaPlayer.Pause();
+            // Swap to Dust Groove while paused, remember where the run song was
+            _runSong = MediaPlayer.Queue.ActiveSong;
+            _runAt = MediaPlayer.PlayPosition;
+            Music.Play(ScreenManager.Game.Content.Load<Song>("Audio/Music/dust_groove"), 3.5f);
         }
 
         private static Rectangle OptionRectangle(int i) => new Rectangle(Game1.VirtualWidth / 2 - 95, 190 + i * 58, 190, 48);
@@ -62,7 +67,7 @@ namespace Runner_Game.Screens
             if (_selected == 1) ScreenManager.AddScreen(new SettingsScreen());
             if (_selected == 2)  // bail on the run, no gems for a quit
             {
-                MediaPlayer.Stop();
+                Music.Stop();
                 ExitScreen();
                 _run.ExitScreen();
             }
@@ -72,7 +77,8 @@ namespace Runner_Game.Screens
         {
             Sfx.Play("menu_pick", 0.5f, 0f);
             RunStats.Countdown = 3f;
-            MediaPlayer.Resume();
+            if (_runSong != null) Music.Play(_runSong, 1f, _runAt);  // picks the run song back up where it was
+            else Music.Stop();
             ExitScreen();
         }
 
