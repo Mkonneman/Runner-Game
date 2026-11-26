@@ -79,15 +79,16 @@ namespace Runner_Game.Screens
             spriteBatch.Begin(samplerState: SamplerState.PointClamp);
             spriteBatch.Draw(_pixel, new Rectangle(0, 0, viewport.Width, viewport.Height), Color.Black * 0.6f * TransitionAlpha);
             DrawCentered(_title, 105, Color.OrangeRed, 0.5f, ScreenManager.BigFont);
-            DrawCentered(_line, 180, Color.White, 0.55f, ScreenManager.MenuFont);
+            var font = ScreenManager.Game.Content.Load<SpriteFont>("Fonts/SettingsFont");  // Pixellari, reads cleaner than the body font here (content caches it)
+            DrawCentered(_line, 180, Color.White, 0.46f, font);
             for (int b = 0; b < ButtonCount; b++)
             {
                 var rect = Button(b);
                 bool quiet = b == 2 && !Door;  // the third one is small and quiet (except the door's Gear)
-                float scale = quiet ? 0.38f : 0.5f;
+                float scale = quiet ? 0.32f : 0.42f;
                 MenuButton.Draw(spriteBatch, _button, rect, MenuButton.Tint(_choice == b) * (quiet && _choice != 2 ? 0.7f : 1f) * TransitionAlpha);
-                var size = ScreenManager.MenuFont.MeasureString(_labels[b]) * scale;
-                Shadowed(_labels[b], new Vector2(rect.Center.X - size.X / 2, rect.Center.Y - size.Y / 2), _choice == b ? Color.Yellow : quiet ? Color.LightGray : Color.White, scale, ScreenManager.MenuFont);
+                var size = font.MeasureString(_labels[b]) * scale;
+                Shadowed(_labels[b], new Vector2(rect.Center.X - size.X / 2, rect.Center.Y - size.Y / 2), _choice == b ? Color.Yellow : quiet ? Color.LightGray : Color.White, scale, font);
             }
             spriteBatch.End();
         }

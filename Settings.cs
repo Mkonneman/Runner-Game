@@ -53,6 +53,11 @@ namespace Runner_Game
         // Testing: where Play drops you (not saved, always back to the blue cave on launch)
         public static readonly string[] StartNames = { "Blue", "Orange", "Green", "Door", "Hall", "Boss" };
         public static int TestStart;
+        public static bool Invincible;      // testing: nothing hurts, holes don't drop you
+        public enum Obstacle { Off, Walls, Spikes, Rocks, Lasers, Crystals, Icicles, Vines, Mushrooms, VineSwing }
+        public static Obstacle OnlySpawn;   // testing: only this shows up, over and over
+        public static bool CaveEnd;         // testing: start near the end of the Start at cave, right before the transition
+        public static bool PadUi;           // testing: every prompt shows Xbox buttons, even on keyboard
         public static bool ShowHitboxes;  // testing: outlines on the boss fight hitboxes (F3 flips it in the arena)
     }
 }

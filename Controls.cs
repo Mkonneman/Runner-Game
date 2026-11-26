@@ -53,12 +53,13 @@ namespace Runner_Game
             var mouse = Mouse.GetState();
             bool mouseTouched = mouse.Position != _lastMousePosition || mouse.LeftButton == ButtonState.Pressed;
             _lastMousePosition = mouse.Position;
-            if (padTouched) UsingPad = true;
-            else if (_keyboard.GetPressedKeyCount() > 0 || mouseTouched || !_pad.IsConnected) UsingPad = false;
+            if (padTouched) _usingPad = true;
+            else if (_keyboard.GetPressedKeyCount() > 0 || mouseTouched || !_pad.IsConnected) _usingPad = false;
         }
 
         // True when the controller was the last thing used (prompts show Xbox buttons)
-        public static bool UsingPad { get; private set; }
+        public static bool UsingPad => _usingPad || Settings.PadUi;
+        private static bool _usingPad;
 
         /// <summary>
         /// True while the action is held

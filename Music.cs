@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Microsoft.Xna.Framework.Media;
 
 namespace Runner_Game
@@ -15,18 +16,24 @@ namespace Runner_Game
         private static float _level, _fadeIn = 1f, _nextFadeIn;
         private static bool _stopping;
 
+        // Menu songs pick up where they left off when you come back to that menu (resume: true),
+        // a run song (anything without resume) wipes the bookmarks so menus start fresh after a run
+        private static readonly Dictionary<Song, TimeSpan> _bookmarks = new();
+        private static Song _current;
+        private static bool _currentResumes, _nextResume;
+
         // Gameplay sets this each frame (Time Slow makes it quiet), Play puts it back to 1
         public static float Duck = 1f;
 
-        public static void Play(Song song, float fadeIn = 1f, TimeSpan? at = null)
+        public static void Play(Song song, float fadeIn = 1f, TimeSpan? at = null, bool resume = false)
         {
             Duck = 1f;
             if (song == null) return;
             bool on = MediaPlayer.State == MediaState.Playing && MediaPlayer.Queue.ActiveSong == song;
             if (on && _next == null) { _stopping = false; _fadeIn = fadeIn; return; }  // already playing, keep it (and cancel a stop)
             if (_next == song) return;  // already waiting to come in
-            if (MediaPlayer.State == MediaState.Playing && _level > 0.01f) { _next = song; _nextFadeIn = fadeIn; _nextAt = at; _stopping = false; return; }  // fade the old one out first
-            Start(song, fadeIn, at);
+            if (MediaPlayer.State == MediaState.Playing && _level > 0.01f) { _next = song; _nextFadeIn = fadeIn; _nextAt = at; _nextResume = resume; _stopping = false; return; }  // fade the old one out first
+            Start(song, fadeIn, at, resume);
         }
 
         // Fades out, then stops
@@ -36,8 +43,18 @@ namespace Runner_Game
             if (MediaPlayer.State == MediaState.Playing) _stopping = true;
         }
 
-        private static void Start(Song song, float fadeIn, TimeSpan? at)
+        // Remembers where the menu song that's on got to
+        private static void Bookmark()
         {
+            if (_current != null && _currentResumes && MediaPlayer.State == MediaState.Playing) _bookmarks[_current] = MediaPlayer.PlayPosition;
+        }
+
+        private static void Start(Song song, float fadeIn, TimeSpan? at, bool resume)
+        {
+            Bookmark();
+            if (!resume) _bookmarks.Clear();  // a run song, menus start over next time
+            else if (at == null && _bookmarks.TryGetValue(song, out var spot)) at = spot;
+            _current = song; _currentResumes = resume;
             _next = null; _stopping = false; _fadeIn = fadeIn; _level = 0;
             MediaPlayer.IsRepeating = true;
             MediaPlayer.Volume = 0;
@@ -52,8 +69,8 @@ namespace Runner_Game
                 if (_level <= 0)
                 {
                     _level = 0;
-                    if (_next != null) Start(_next, _nextFadeIn, _nextAt);
-                    else { MediaPlayer.Stop(); _stopping = false; }
+                    if (_next != null) Start(_next, _nextFadeIn, _nextAt, _nextResume);
+                    else { Bookmark(); MediaPlayer.Stop(); _stopping = false; }
                 }
             }
             else _level = MathF.Min(1, _level + dt / MathF.Max(0.01f, _fadeIn));

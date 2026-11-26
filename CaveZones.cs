@@ -15,7 +15,6 @@ namespace Runner_Game
 
         // Leftover from checkpoints (removed), still saved so old saves load, runs always start in the blue cave now
         public static int Checkpoint;
-        public const float FadeTime = 6f;     // how long the fade into the next color takes
 
         // Hue shift in degrees, the color it gets pulled toward, and how hard it gets pulled
         private static readonly (float Shift, Color Target, float Mix)[] Zones =
@@ -44,7 +43,7 @@ namespace Runner_Game
         public static (int From, int To, float Blend) At(float time)
         {
             int zone = (int)(time / ZoneLength);
-            float blend = MathHelper.Clamp((time - zone * ZoneLength - (ZoneLength - FadeTime)) / FadeTime, 0f, 1f);
+            const float blend = 0f;  // hard swap at the zone line, the rock wall sweeping past hides it
             if (Endless) return (zone % Count, (zone + 1) % Count, blend);  // loops through every color forever
             if (zone >= Count - 1) return (Count - 1, Count - 1, 0f);  // last color sticks
             return (zone, zone + 1, blend);

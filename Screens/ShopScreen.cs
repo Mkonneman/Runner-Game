@@ -74,8 +74,8 @@ namespace Runner_Game.Screens
             TransitionOffTime = TimeSpan.FromSeconds(0.3);
         }
 
-        // Items on the current tab (only the ones in the shop right now)
-        private Item[] TabItems => Shop.Items.Where(i => i.Slot == (Slot)_tab && i.InShop).OrderBy(i => i.BaseSkin ?? i.Id).ToArray();  // recolored skins right after the one they came from
+        // Items on the current tab (only the ones in the shop right now, maxed out ones are gone)
+        private Item[] TabItems => Shop.Items.Where(i => i.Slot == (Slot)_tab && i.InShop && !Shop.IsMaxed(i.Id)).OrderBy(i => Rarity.Tier(i.Id)).ThenBy(i => i.Price).ThenBy(i => i.BaseSkin ?? i.Id).ToArray();  // lowest rarity first  // recolored skins right after the one they came from
         private int ItemRows => (TabItems.Length + Columns - 1) / Columns;
         private int SelectedIndex => _row >= 0 && _row < ItemRows ? _row * Columns + _col : -1;
 
@@ -115,7 +115,7 @@ namespace Runner_Game.Screens
             _messageTime -= dt;
 
             // When leaving the shop music fades with the screen, otherwise fade the old song out and ours in
-            if (!IsExiting) Music.Play(_shopMusic, 3.5f);  // the groove eases in slow
+            if (!IsExiting) Music.Play(_shopMusic, 3.5f, resume: true);  // the groove eases in slow
             _time += dt;
 
             // Blink every 2-5 seconds (the eyes go dark while it's below zero)
@@ -159,6 +159,9 @@ namespace Runner_Game.Screens
                 _buySound.PlaySfx(0.8f, 0.3f, 0f);
             }
 
+            if (_row >= ItemRows && _row != ButtonRow) _row = ItemRows > 0 ? ItemRows - 1 : ButtonRow;
+            _scroll = Math.Clamp(_scroll, 0, Math.Max(0, ItemRows - VisibleRows));
+
             // Q / E or the bumpers flip tabs from anywhere
             if (input.IsNewKeyPress(Keys.Q) || input.IsNewButtonPress(Buttons.LeftShoulder)) SwitchTab(_tab - 1);
             if (input.IsNewKeyPress(Keys.E) || input.IsNewButtonPress(Buttons.RightShoulder)) SwitchTab(_tab + 1);
@@ -172,7 +175,7 @@ namespace Runner_Game.Screens
             {
                 if (_row < 0) SwitchTab(_tab + 1); else _col = Math.Min(RowLength(_row) - 1, _col + 1);
             }
-            if (input.IsNewKeyPress(Keys.Down)) _row = _row < 0 ? _scroll : _row < ItemRows - 1 ? _row + 1 : ButtonRow;
+            if (input.IsNewKeyPress(Keys.Down)) _row = _row < 0 && ItemRows > 0 ? _scroll : _row >= 0 && _row < ItemRows - 1 ? _row + 1 : ButtonRow;
             else if (input.IsNewKeyPress(Keys.Up)) _row = _row == ButtonRow ? Math.Min(ItemRows, _scroll + VisibleRows) - 1 : _row - 1 < 0 ? -1 : _row - 1;
             if (_row < 0) _col = _tab;
             _col = Math.Clamp(_col, 0, RowLength(_row) - 1);
@@ -295,6 +298,7 @@ namespace Runner_Game.Screens
             Hud.Pill(spriteBatch, new Rectangle(gemBox.X - 2, gemBox.Y - 2, gemBox.Width + 4, gemBox.Height + 4), Color.Lerp(Color.Cyan, Color.White, 0.3f) * 0.85f * TransitionAlpha);
             Hud.Pill(spriteBatch, gemBox, new Color(14, 20, 38) * TransitionAlpha);
             spriteBatch.End();
+            _gem3D.DrawOutline(new Vector2(gemBox.X + 6, gemBox.Center.Y - 4), 22, _time * 2f, 2.5f, TransitionAlpha);
             _gem3D.Draw(new Vector2(gemBox.X + 6, gemBox.Center.Y - 4), 22, _time * 2f, Matrix.Identity, TransitionAlpha);  // big, hides the left end of the box
 
             spriteBatch.Begin(samplerState: SamplerState.PointClamp);
@@ -302,12 +306,15 @@ namespace Runner_Game.Screens
             // Gem count inside its box, right of the gem
             var gemsPos = new Vector2(gemBox.X + 34, gemBox.Center.Y - small.MeasureString(gems).Y * GemTextScale / 2);
             spriteBatch.DrawString(small, gems, gemsPos + new Vector2(1, 2), Color.Black * TransitionAlpha, 0f, Vector2.Zero, GemTextScale, SpriteEffects.None, 0f);
-            spriteBatch.DrawString(small, gems, gemsPos, Color.Lerp(Color.Cyan, Color.White, 0.35f) * TransitionAlpha, 0f, Vector2.Zero, GemTextScale, SpriteEffects.None, 0f);
+            spriteBatch.DrawString(small, gems, gemsPos, Color.Yellow * TransitionAlpha, 0f, Vector2.Zero, GemTextScale, SpriteEffects.None, 0f);
             DrawText("Shop", new Vector2(GridX + 250 - ScreenManager.TitleFont.MeasureString("Shop").X * 0.4f, 4), Color.Yellow, 0.8f, ScreenManager.TitleFont);
 
             // Tabs, the open one is bright
             for (int t = 0; t < TabNames.Length; t++)
                 DrawButton(TabRectangle(t), TabNames[t], t == _tab, _row < 0 && t == _tab ? Color.Yellow : t == _tab ? Color.White : Color.Gray);
+            // which button flips the tabs, either side of them
+            Hud.PadHint(spriteBatch, font, Controls.UsingPad ? "LB" : "Q", new Vector2(TabRectangle(0).X - 17, TabRectangle(0).Center.Y), TransitionAlpha);
+            Hud.PadHint(spriteBatch, font, Controls.UsingPad ? "RB" : "E", new Vector2(TabRectangle(TabNames.Length - 1).Right + 17, TabRectangle(0).Center.Y), TransitionAlpha);
 
             // Item panels with the icon, name, level bars and the price (or Owned / Max)
             var items = TabItems;
@@ -320,8 +327,6 @@ namespace Runner_Game.Screens
                 bool selected = i == SelectedIndex;
                 bool owned = Shop.Owns(item.Id);
                 MenuButton.Draw(spriteBatch, _card, rect, MenuButton.Tint(selected) * TransitionAlpha);
-                if (Shop.IsEquipped(item.Id))
-                    Hud.Dot(spriteBatch, MenuButton.Inside(new Rectangle(rect.X + 8, rect.Y + 8, 10, 10)).Center.ToVector2(), 10, Color.LimeGreen * TransitionAlpha);  // green dot = equipped, squashes with the card
 
                 var rarity = Rarity.Of(item.Id);
                 var iconArea = new Rectangle(rect.Center.X - 24, rect.Y + 8, 48, 48);
@@ -345,42 +350,47 @@ namespace Runner_Game.Screens
                 var nameBlock = new Rectangle((int)(rect.Center.X - blockWidth / 2), (int)nameTop, (int)blockWidth, (int)(lineStep * (nameLines.Length - 1) + titleFont.LineSpacing * nameScale));
                 Rarity.DrawSparks(spriteBatch, nameBlock, rarity, TransitionAlpha, 4);
 
-                // One bar per level, lit green once bought (single level items skip these)
+                // Owned: the level this upgrade takes it to, in that level's color
                 if (owned && item.MaxLevel > 1)
                 {
-                    int barWidth = (rect.Width - 24 - (item.MaxLevel - 1) * 4) / item.MaxLevel;
-                    for (int b = 0; b < item.MaxLevel; b++)
-                    {
-                        var bar = MenuButton.Inside(new Rectangle(rect.X + 12 + b * (barWidth + 4), rect.Y + 86, barWidth, 6));  // squashes with the card
-                        spriteBatch.Draw(_pixel, new Rectangle(bar.X - 2, bar.Y - 2, bar.Width + 4, bar.Height + 4), Color.Black * TransitionAlpha);  // outline
-                        spriteBatch.Draw(_pixel, bar, (b < Shop.Level(item.Id) ? Color.LimeGreen : new Color(40, 40, 50)) * TransitionAlpha);
-                    }
+                    string up = $"Level {Shop.Level(item.Id) + 1}";
+                    float upScale = MathF.Min(0.34f, (rect.Width - 20) / font.MeasureString(up).X);
+                    DrawText(up, new Vector2(rect.Center.X - font.MeasureString(up).X * upScale / 2, rect.Y + 80), Rarity.Colors[Rarity.TierAt(item.Id, Shop.Level(item.Id) + 1)], upScale);
                 }
 
-                if (Shop.IsMaxed(item.Id))
-                {
-                    string done = item.MaxLevel == 1 ? "Owned" : "Max";
-                    DrawText(done, new Vector2(rect.Center.X - font.MeasureString(done).X * 0.2f, rect.Y + 98), Color.LimeGreen, 0.4f);
-                }
-                else
-                {
-                    int cost = Shop.Price(item.Id);
-                    string price = cost.ToString();
-                    float priceWidth = font.MeasureString(price).X * 0.4f;
-                    float priceHeight = font.MeasureString(price).Y * 0.4f;
-                    int gemY = (int)(rect.Y + 98 + priceHeight / 2 - 3) - 9;  // lined up with the middle of the number (the gem's point hangs low, so a touch higher)
-                    priceGems.Add(MenuButton.Inside(new Rectangle((int)(rect.Center.X - (priceWidth + 22) / 2), gemY, 18, 18)).Center.ToVector2());  // 3D gem drawn after the batch
-                    DrawOutlined(price, new Vector2(rect.Center.X - (priceWidth + 22) / 2 + 24, rect.Y + 98), Shop.Gems >= cost ? Color.Lerp(Color.Cyan, Color.White, 0.25f) : Color.IndianRed, 0.4f);
-                }
+                // Price: gem then number, centered as one block, the gem's middle on the middle of the digits
+                int cost = Shop.Price(item.Id);
+                string price = cost.ToString();
+                const float PriceScale = 0.4f;
+                float priceWidth = font.MeasureString(price).X * PriceScale;
+                var digit = font.GetGlyphs()['0'];
+                float digitMid = (digit.Cropping.Y + digit.BoundsInTexture.Height / 2f) * PriceScale;  // middle of the actual ink, not the line box
+                float left = rect.Center.X - (18 + 6 + priceWidth) / 2;
+                const int PriceY = 98;
+                priceGems.Add(MenuButton.TextPos(new Vector2(left + 9, rect.Y + PriceY + digitMid)));  // 3D gem drawn after the batch
+                DrawOutlined(price, new Vector2(left + 24, rect.Y + PriceY), Shop.Gems >= cost ? Color.Lerp(Color.Cyan, Color.White, 0.25f) : Color.IndianRed, PriceScale);
+            }
+
+            if (items.Length == 0)
+            {
+                var sign = new Rectangle(GridX + 80, GridY + 6, 340, 112);  // above the info bar
+                Hud.Frame(spriteBatch, sign, 18, Color.White * TransitionAlpha);
+                var title = ScreenManager.TitleFont;
+                const string Sold = "SOLD OUT";
+                var size = title.MeasureString(Sold);
+                float soldScale = MathF.Min(1f, (sign.Width - 60) / size.X);
+                spriteBatch.DrawString(title, Sold, sign.Center.ToVector2() + new Vector2(3), Color.Black * TransitionAlpha, -0.06f, size / 2, soldScale, SpriteEffects.None, 0f);
+                spriteBatch.DrawString(title, Sold, sign.Center.ToVector2(), new Color(255, 80, 70) * TransitionAlpha, -0.06f, size / 2, soldScale, SpriteEffects.None, 0f);
             }
 
             // What the picked thing does (or the last buy message)
             string info = _messageTime > 0 ? _message
                 : SelectedIndex >= 0 && SelectedIndex < items.Length ? ItemInfo(items[SelectedIndex])
+                : items.Length == 0 ? "You've maxed out everything here!"
                 : _row == ButtonRow ? "Back"
-                : "Q / E (or LB / RB) to switch tabs";
+                : Controls.UsingPad ? $"{Hud.PadLabel("LB")} / {Hud.PadLabel("RB")} to switch tabs" : "Q / E to switch tabs";
             Hud.ScrollBar(spriteBatch, new Rectangle(GridX + Columns * (PanelWidth + 8) - 2, GridY + 4, 6, VisibleRows * (PanelHeight + 6) - 14), _scroll, VisibleRows, ItemRows, Color.Lerp(Color.Cyan, Color.White, 0.4f), TransitionAlpha);  // only shows when there's more
-            int infoY = GridY + Math.Min(ItemRows, VisibleRows) * (PanelHeight + 6) + 2;
+            int infoY = GridY + Math.Max(1, Math.Min(ItemRows, VisibleRows)) * (PanelHeight + 6) + 2;
             float infoScale = MathF.Min(0.4f, 480 / font.MeasureString(info).X);
             spriteBatch.Draw(_pixel, new Rectangle(GridX, infoY, 500, 44), Color.Black * 0.7f * TransitionAlpha);
             DrawText(info, new Vector2(GridX + 10, infoY + 3), Color.White, infoScale);
@@ -457,7 +467,7 @@ namespace Runner_Game.Screens
             DrawText(item.Name, new Vector2(box.X + Pad + 34, box.Y + PadY + 2), tier, 0.4f, squish: false);
             if (item.MaxLevel > 1)
             {
-                string lv = $"Lv {level}/{item.MaxLevel}";
+                string lv = $"Level {level}";
                 DrawText(lv, new Vector2(box.Right - Pad - font.MeasureString(lv).X * Scale, box.Y + PadY + 5), Color.LightGray, Scale, squish: false);
             }
             int y = box.Y + PadY + 32;
@@ -474,8 +484,8 @@ namespace Runner_Game.Screens
                 {
                     var color = Rarity.Colors[Rarity.TierAt(item.Id, l + 1)];
                     var at = new Vector2(left + step * l, cy);
-                    bool owned = l < level, next = l == level;
-                    float size = 18 * (next ? 1f + 0.12f * MathF.Sin(time * 6) : 1f);
+                    bool owned = l < level, next = l == level, pulse = l == Math.Min(level, item.MaxLevel - 1);  // maxed, the last gem keeps pulsing
+                    float size = 18 * (pulse ? 1f + 0.12f * MathF.Sin(time * 6) : 1f);
                     if (owned) sb.Draw(_glow, at, null, color * 0.5f * TransitionAlpha, 0f, new Vector2(_glow.Width / 2f, _glow.Height / 2f), 26f / _glow.Width, SpriteEffects.None, 0f);
                     var tint = owned ? color : next ? color * 0.55f : new Color(60, 60, 70);
                     sb.Draw(_gemGray, at, null, tint * TransitionAlpha, 0f, new Vector2(_gemGray.Width / 2f, _gemGray.Height / 2f), size / _gemGray.Width, SpriteEffects.None, 0f);

@@ -14,7 +14,7 @@ namespace Runner_Game
     /// </summary>
     public class Golem
     {
-        private enum State { Waiting, Idle, Walk, Windup, Swipe, Shoot, Laser, Armor, Glow, Jump, Pound, Dying }
+        private enum State { Waiting, Idle, Walk, Windup, Swipe, Shoot, Laser, Armor, Glow, Jump, Pound, Walls, Dying }
 
         // Sheet rows
         private const int RowIdle = 0, RowGlow = 1, RowShoot = 2, RowArmor = 3, RowPunch = 4, RowLaser = 5, RowWalk = 6, RowDie = 7;
@@ -22,13 +22,20 @@ namespace Runner_Game
         public const float Scale = 3.5f;
         public const int MaxHp = 30;
 
-        private Texture2D _sheet, _laser, _fist;
+        private Texture2D _sheet, _fist;
         private Texture2D _rageSheet;  // same sheet hue shifted purple
 
-        // Rage: under 30% health his stone goes purple, he picks moves faster and throws 3 fists at once
-        public bool Enraged => _state != State.Waiting && Hp <= MaxHp * 3 / 10;
+        // Rage: at half health his stone goes purple, he picks moves faster and throws 3 fists at once
+        public bool Enraged => _state != State.Waiting && Hp <= MaxHp / 2;
         private float _rageT;  // seconds since he snapped, fades the purple in
         public Texture2D RockTexture, Pixel;   // set by the arena (the cave's falling rock, and a white pixel)
+        public Texture2D WallTexture;          // cave wall, for the wall attack
+
+        // Wall attack: he slams and stone walls burst out of the floor, then slide at you (jump them or smash them)
+        private readonly List<(float X, int Dir, float Age)> _walls = new();
+        private const float WallH = 95f, WallHalf = 26f, WallRise = 0.25f, WallSlam = 0.6f;
+        private float _touchCd;  // bumping into him hurts, this keeps it from hitting every frame
+        private float _touchArm, _armDelay = 0.6f;  // how long he's been able to hurt on touch, and how long that takes to kick in (longer after a jump)
         public SpriteFont Font;                // for the ! warning
         public Action Landed;                  // he hit the floor after a jump or a pound (the arena shakes the screen)
         public Action<int> Knock;             // his swing landed, push the player this way
@@ -57,6 +64,7 @@ namespace Runner_Game
         public Vector2 Feet;                   // on screen, set by the arena every frame (plus the jump height)
         private float _jumpFrom, _jumpTo, _hop;
         public bool Dead => _state == State.Dying && _t > 2.2f;
+        private static readonly int[] DieBottom = { 70, 70, 70, 70, 71, 73, 76, 83, 92, 93, 93, 94, 93, 93 };  // lowest pixel of each crumble frame (standing is 70)
         public bool Dying => _state == State.Dying;
         public bool Immune => (_state == State.Armor || _state == State.Glow) && _t > 0.3f && _t < RockTime + 0.5f;
         private const float RockTime = 3.4f;   // how long the rock rain lasts
@@ -106,7 +114,6 @@ namespace Runner_Game
         {
             _sheet = content.Load<Texture2D>("Images/Boss/golem");
             _rageSheet = content.Load<Texture2D>("Images/Boss/golem_rage");
-            _laser = content.Load<Texture2D>("Images/Boss/golem_laser");
             _fist = content.Load<Texture2D>("Images/Boss/golem_fist");
             _shard = content.Load<Texture2D>("Images/Particles/shard");
         }
@@ -121,6 +128,9 @@ namespace Runner_Game
         {
             _last = _state; _state = s; _t = 0; _fired = false;
             if (s == State.Idle) _wanderX = RandomHelper.NextFloat(140, 760);  // somewhere new to stroll to
+            if (s == State.Windup) Sfx.Play("golem_grind", 0.5f);   // stone scraping as the arm goes back
+            if (s == State.Walls) Sfx.Play("golem_rise", 0.6f);
+            if (s == State.Dying) { _push = 0; Sfx.Play("golem_crumble", 0.85f, 0f); }  // crumbles right where he stands
         }
 
         private static bool Hits(BoundingRectangle r, Vector2 p, float pad) =>
@@ -132,7 +142,7 @@ namespace Runner_Game
             _hitFlash -= dt; _bonk -= dt;
             if (Enraged)
             {
-                if (_rageT == 0) { Landed?.Invoke(); Sfx.Play("slam", 0.9f, -0.5f); Rumble.Slam(); }  // he snaps, big stomp
+                if (_rageT == 0) { Landed?.Invoke(); Sfx.Play("slam", 0.9f, -0.5f); Sfx.Play("golem_roar", 0.8f, 0f); Rumble.Slam(); }  // he snaps, big stomp and a growl
                 _rageT += dt;
             }
             _floorY = Feet.Y;
@@ -144,6 +154,7 @@ namespace Runner_Game
             bool lingering = _closeTime > LingerTime;
 
             if (_state != State.Dying && _state != State.Swipe) _faceLeft = gap < 0;  // always squared up to you (the swing itself commits)
+            if ((_state == State.Walk || _state == State.Idle && _strolling) && (int)(_t / 0.45f) != (int)((_t - dt) / 0.45f)) Sfx.Play("golem_step", 0.3f, 0.15f);  // two stomps per walk cycle
             switch (_state)
             {
                 case State.Idle:
@@ -156,13 +167,14 @@ namespace Runner_Game
                     {
                         // Shield only when his health drops past 75%, 50% and 25% (once each), otherwise a normal move
                         bool shieldDue = _shields < 3 && Hp <= MaxHp * (0.75f - 0.25f * _shields);
-                        int roll = RandomHelper.Next(0, 11);
+                        int roll = RandomHelper.Next(0, 12);
                         State next = shieldDue ? State.Armor : roll switch
                         {
                             0 => MathF.Abs(gap) > 220 ? State.Walk : State.Shoot,
                             1 or 2 => State.Shoot,
                             3 or 4 => State.Pound,
                             >= 5 and <= 9 => State.Jump,  // his favorite, leaps all over the place
+                            11 => State.Walls,
                             _ => State.Laser,
                         };
                         if (shieldDue) _shields++;
@@ -199,7 +211,7 @@ namespace Runner_Game
                 case State.Jump:  // squat, big arc to where you were standing, slam
                     float air = MathHelper.Clamp((_t - 0.2f) / 0.65f, 0, 1);
                     X = MathHelper.Lerp(_jumpFrom, _jumpTo, air);
-                    _hop = MathF.Sin(air * MathF.PI) * 170;
+                    _hop = MathF.Sin(air * MathF.PI) * 250;  // high enough to run under
                     if (!_fired && air >= 1)
                     {
                         _fired = true; _hop = 0;
@@ -220,6 +232,22 @@ namespace Runner_Game
                             _waves.Add((Feet.X - 40, -1)); _waves.Add((Feet.X + 40, 1));
                         }
                     if (_t > SlamTimes[slams - 1] + 0.3f) Go(State.Idle);
+                    break;
+
+                case State.Walls:  // arm up, slam, then 2 walls (3 raging) burst up beside him one after another and slide your way
+                    int walls = Enraged ? 3 : 2;
+                    if (_t - dt < WallSlam && _t >= WallSlam) { Landed?.Invoke(); Sfx.Play("slam", 0.7f); }
+                    for (int k = 0; k < walls; k++)
+                    {
+                        float at = WallSlam + k * 0.5f;
+                        if (_t - dt < at && _t >= at)
+                        {
+                            int dir = gap < 0 ? -1 : 1;
+                            _walls.Add((MathHelper.Clamp(Feet.X + dir * 90, 30, 824), dir, 0));
+                            Sfx.Play("slam", 0.4f, 0.3f);
+                        }
+                    }
+                    if (_t > WallSlam + (walls - 1) * 0.5f + 0.5f) Go(State.Idle);
                     break;
 
                 case State.Shoot:
@@ -275,6 +303,28 @@ namespace Runner_Game
                     break;
             }
             if (_state != State.Jump) _hop = 0;
+
+            // Running into him hurts and bumps you back off him
+            _touchCd -= dt;
+            bool canTouch = _state != State.Waiting && _state != State.Dying && _state != State.Jump && !Immune;  // the jump has its own landing hit
+            if (canTouch) _touchArm += dt;
+            else { _touchArm = 0; _armDelay = _state == State.Jump ? 1.5f : 0.6f; }  // a breather to get off him after he lands
+            if (_touchArm >= _armDelay && _touchCd <= 0 && Body.CollidesWith(me))
+            {
+                _touchCd = 0.5f;
+                hurt("hit");
+                Knock?.Invoke(playerX < Body.Center.X ? -1 : 1);
+            }
+
+            for (int i = _walls.Count - 1; i >= 0; i--)
+            {
+                var (wx, dir, age) = _walls[i];
+                age += dt;
+                if (age > WallRise) wx += dir * (Enraged ? 380 : 300) * dt;
+                _walls[i] = (wx, dir, age);
+                if (WallBox(wx, age).CollidesWith(me)) { hurt("hit"); Knock?.Invoke(dir); fistBroken(new Vector2(wx, Floor(wx) - WallH / 2)); _walls.RemoveAt(i); continue; }
+                if (wx < -60 || wx > 914) _walls.RemoveAt(i);
+            }
             X = MathHelper.Clamp(X + _push * dt, 90, 770);
             _push *= MathF.Pow(0.03f, dt);
 
@@ -332,13 +382,18 @@ namespace Runner_Game
             {
                 var r = _rocks[i];
                 if ((r.Warn -= dt) <= 0) { r.Speed += 1400 * dt; r.Pos.Y += r.Speed * dt; r.Spin += 4 * dt; }
-                if (Hits(me, r.Pos, RockSize * 0.25f)) { hurt("rock"); fistBroken(r.Pos); _rocks.RemoveAt(i); continue; }
+                if (Hits(me, r.Pos, RockSize * 0.15f)) { hurt("rock"); fistBroken(r.Pos); _rocks.RemoveAt(i); continue; }
                 if (r.Pos.Y > Floor(r.Pos.X) - RockSize * 0.3f) { fistBroken(new Vector2(r.Pos.X, Floor(r.Pos.X) - 10)); _rocks.RemoveAt(i); continue; }
                 _rocks[i] = r;
             }
         }
 
-        private static BoundingRectangle FistBox(Vector2 p) => new(p.X - 14 * 3, p.Y - 7 * 3, 28 * 3, 14 * 3);
+        private static BoundingRectangle FistBox(Vector2 p) => new(p.X - 30, p.Y - 15, 60, 30);  // a bit smaller than the fist art so near misses don't count
+        private BoundingRectangle WallBox(float x, float age)
+        {
+            float h = WallH * MathHelper.Clamp(age / WallRise, 0, 1);
+            return new(x - WallHalf, Floor(x) - h, WallHalf * 2, h);
+        }
 
         /// <summary>
         /// A smash from point with this reach, breaks fists and rocks in the way and hurts the golem. Returns 1 hit, 0 shielded, -1 missed
@@ -349,13 +404,19 @@ namespace Runner_Game
                 if (Vector2.Distance(_fists[i].Pos, point) < reach + 30) { fistBroken(_fists[i].Pos); _fists.RemoveAt(i); }
             for (int i = _rocks.Count - 1; i >= 0; i--)
                 if (_rocks[i].Warn <= 0 && Vector2.Distance(_rocks[i].Pos, point) < reach + RockSize / 2) { fistBroken(_rocks[i].Pos); _rocks.RemoveAt(i); }
+            for (int i = _walls.Count - 1; i >= 0; i--)
+            {
+                var box = WallBox(_walls[i].X, _walls[i].Age);
+                var near = new Vector2(MathHelper.Clamp(point.X, box.Left, box.Right), MathHelper.Clamp(point.Y, box.Top, box.Bottom));
+                if (Vector2.Distance(near, point) < reach + 10) { fistBroken(new Vector2(_walls[i].X, box.Top + box.Height / 2)); _walls.RemoveAt(i); }
+            }
             if (_state == State.Waiting || Dying || Vector2.Distance(Body.Center, point) > reach + Body.Radius) return -1;
             if (Immune) { _bonk = 0.25f; Sfx.Play("shield_bonk"); return 0; }
             Hp = Math.Max(0, Hp - damage);
             if (_state != State.Jump) _push = MathF.Sign(Body.Center.X - point.X + 0.01f) * 260 * damage;  // shoved away from the hit
             _hitFlash = 0.12f;
             Sfx.Play(Hp == 0 ? "golem_die" : "golem_hit", Hp == 0 ? 0.9f : 0.6f);
-            if (Hp == 0) { Go(State.Dying); _fists.Clear(); _rocks.Clear(); _waves.Clear(); _beams.Clear(); }
+            if (Hp == 0) { Go(State.Dying); _fists.Clear(); _rocks.Clear(); _waves.Clear(); _beams.Clear(); _walls.Clear(); }
             return 1;
         }
 
@@ -370,6 +431,7 @@ namespace Runner_Game
                 case State.Shoot: row = RowShoot; frame = _t < ThrowAt ? Math.Min(2, (int)(_t / 0.08f)) : Math.Min(8, 3 + (int)((_t - ThrowAt) / 0.05f)); break;  // holds the wind-up, then the arm shoots out
                 case State.Laser: row = RowLaser; frame = Math.Min(6, (int)(_t / 0.1f)); break;
                 case State.Pound: { bool slamming = MathF.Abs(_t - SlamTimes[0]) < 0.25f || MathF.Abs(_t - SlamTimes[1]) < 0.25f; float raise = _t < SlamTimes[0] ? _t : _t - SlamTimes[0] - 0.25f; row = RowPunch; frame = slamming ? 6 : Math.Min(3, (int)(raise / 0.1f)); break; }  // arm up, slam, arm up again
+                case State.Walls: row = RowPunch; frame = _t < WallSlam ? Math.Min(3, (int)(_t / 0.12f)) : _t < WallSlam + 0.25f ? 6 : 3; break;  // arm up, slam, arm stays up while they come out
                 case State.Jump: row = RowArmor; frame = _t < 0.2f || _t > 0.85f ? 2 : 4; break;  // tucks a bit in the air
                 case State.Armor:
                     row = RowArmor;
@@ -382,14 +444,16 @@ namespace Runner_Game
                     row = RowDie + d / 10; frame = d % 10; break;
                 default: if (_state == State.Idle && _strolling) { row = RowWalk; frame = (int)(_t / 0.09f) % 10; } else { row = RowIdle; frame = (int)(_t / 0.15f) % 4; } break;
             }
-            var color = _hitFlash > 0 ? new Color(255, 160, 160) : Immune ? new Color(150, 190, 255) : Color.White;
+            float hot = MathHelper.Clamp((_touchArm - _armDelay + 0.4f) / 0.4f, 0, 1);  // goes red as touching him starts to hurt
+            var color = _hitFlash > 0 ? new Color(255, 160, 160) : Immune ? new Color(150, 190, 255) : Color.Lerp(Color.White, new Color(255, 130, 120), hot * (0.75f + 0.25f * MathF.Sin(_t * 7)));
             float rageIn = MathHelper.Clamp(_rageT / 0.6f, 0, 1);
             if (rageIn > 0 && Glow != null)  // purple haze pulsing behind him
                 spriteBatch.Draw(Glow, Body.Center, null, new Color(150, 80, 255) * (0.3f + 0.12f * MathF.Sin(_rageT * 6)) * rageIn * alpha, 0f, new Vector2(Glow.Width / 2f, Glow.Height / 2f), Body.Radius * 3.2f / Glow.Width, SpriteEffects.None, 0f);
             var source = new Rectangle(frame * Cell, row * Cell, Cell, Cell);
             var flip = _faceLeft ? SpriteEffects.FlipHorizontally : SpriteEffects.None;
-            spriteBatch.Draw(_sheet, Drawn, source, color * alpha * (1 - rageIn), 0f, new Vector2(50, 70), Scale, flip, 0f);
-            if (rageIn > 0) spriteBatch.Draw(_rageSheet, Drawn, source, color * alpha * rageIn, 0f, new Vector2(50, 70), Scale, flip, 0f);  // cross fades to the purple sheet
+            var at = Drawn - new Vector2(0, _state == State.Dying ? (DieBottom[Math.Min(13, (int)(_t / 0.1f))] - 70) * Scale : 0);  // feet stay on the floor while he falls apart
+            spriteBatch.Draw(_sheet, at, source, color * alpha * (1 - rageIn), 0f, new Vector2(50, 70), Scale, flip, 0f);
+            if (rageIn > 0) spriteBatch.Draw(_rageSheet, at, source, color * alpha * rageIn, 0f, new Vector2(50, 70), Scale, flip, 0f);  // cross fades to the purple sheet
 
             // Shielded: a pulsing blue bubble with a dotted rim so it's obvious hits won't land (flashes when something bonks it)
             if (Immune && Glow != null)  // faint blue bubble, brighter for a blink when something bonks it
@@ -417,8 +481,9 @@ namespace Runner_Game
                 spriteBatch.Draw(Pixel, new Rectangle((int)(SwipeX - ConeHalf(SwipeH)), (int)(Feet.Y - SwipeH), (int)(ConeHalf(SwipeH) * 2), 2), cone);
                 foreach (var (bx, age) in _beams) if (age > BeamWarn) Box(new Rectangle((int)bx - 12, 0, 24, (int)_floorY), Color.Cyan);
                 foreach (var (p, _) in _fists) { var f = FistBox(p); Box(new Rectangle((int)f.X, (int)f.Y, (int)f.Width, (int)f.Height), Color.Orange); }
-                foreach (var r in _rocks) if (r.Warn <= 0) Box(new Rectangle((int)(r.Pos.X - RockSize * 0.3f), (int)(r.Pos.Y - RockSize * 0.3f), (int)(RockSize * 0.6f), (int)(RockSize * 0.6f)), Color.White);
+                foreach (var r in _rocks) if (r.Warn <= 0) Box(new Rectangle((int)(r.Pos.X - RockSize * 0.15f), (int)(r.Pos.Y - RockSize * 0.15f), (int)(RockSize * 0.3f), (int)(RockSize * 0.3f)), Color.White);
                 foreach (var (x, _) in _waves) Box(new Rectangle((int)x - 22, (int)Floor(x) - 24, 44, 24), Color.Orange);
+                foreach (var (x, _, age) in _walls) { var w = WallBox(x, age); Box(new Rectangle((int)w.X, (int)w.Y, (int)w.Width, (int)w.Height), Color.Orange); }
                 if (LaserOn)
                     for (int k = 0; k < 120; k++)
                         spriteBatch.Draw(Pixel, new Rectangle((int)(Eye.X + MathF.Cos(_laserAngle) * k * 8), (int)(Eye.Y + MathF.Sin(_laserAngle) * k * 8), 3, 3), Color.Cyan);
@@ -475,16 +540,47 @@ namespace Runner_Game
                     spriteBatch.Draw(Pixel, new Rectangle((int)(Hand.X + dir.X * d) - 2, (int)(Hand.Y + dir.Y * d) - 2, 4, 4), Color.Orange * 0.6f * MathF.Min(1, _t / ThrowAt) * alpha);
             }
 
-            // ! warning over his head before a swipe, same blinking red as the wall warning
-            if (_state == State.Windup && (int)(_t * 10) % 2 == 0 && Font != null)
+            // ! warning over his head before a swipe or the wall slam, same blinking red as the wall warning
+            if ((_state == State.Windup || (_state == State.Walls && _t < WallSlam)) && (int)(_t * 10) % 2 == 0 && Font != null)
                 spriteBatch.DrawString(Font, "!", Drawn + new Vector2(-12, -62 * Scale), Color.Red * alpha, 0f, Vector2.Zero, 1.6f, SpriteEffects.None, 0f);
 
-            // Laser, the charge orb then the beam (sheet frames 1-8 charge, 9-14 beam), right out of the eye at the sweep angle
-            if (_state == State.Laser && _t < LaserCharge + LaserTime)
+            // Laser: light gathers in his eye, then a straight beam shoots out of it and scorches the floor where it lands
+            if (_state == State.Laser && _t < LaserCharge + LaserTime && Glow != null)
             {
-                int f = _t < LaserCharge ? 1 + (int)(_t / LaserCharge * 8) : 9 + (int)((_t - LaserCharge) / 0.06f) % 6;
-                var scale = _t < LaserCharge ? new Vector2(1.4f) : new Vector2(3f, 1.2f);  // round orb while charging, long beam once it fires
-                spriteBatch.Draw(_laser, Eye, new Rectangle(0, Math.Min(14, f) * 100, 300, 100), Color.White * alpha, _laserAngle, new Vector2(53, 33), scale, SpriteEffects.None, 0f);  // orb center on the eye
+                var glowMid = new Vector2(Glow.Width / 2f, Glow.Height / 2f);
+                if (_t < LaserCharge)
+                {
+                    float c = _t / LaserCharge, flicker = 1 + 0.15f * MathF.Sin(_t * 50);
+                    spriteBatch.Draw(Glow, Eye, null, new Color(80, 190, 255, 0) * 0.9f * alpha, 0f, glowMid, (1 + 4 * c) * flicker, SpriteEffects.None, 0f);
+                    spriteBatch.Draw(Glow, Eye, null, new Color(255, 255, 255, 0) * alpha, 0f, glowMid, (0.4f + 1.6f * c) * flicker, SpriteEffects.None, 0f);
+                }
+                else
+                {
+                    var dir = new Vector2(MathF.Cos(_laserAngle), MathF.Sin(_laserAngle));
+                    float len = 0;
+                    while (len < 1400) { var p = Eye + dir * len; if (p.Y > Floor(p.X) - 6 || p.X < -30 || p.X > 884) break; len += 4; }
+                    float on = (_t - LaserCharge) / LaserTime;
+                    float w = MathHelper.Clamp(MathF.Min(on / 0.08f, (1 - on) / 0.12f), 0, 1) * (1 + 0.12f * MathF.Sin(_t * 45));  // snaps on, wobbles, thins out at the end
+                    var end = Eye + dir * len;
+                    foreach (var (thick, shade) in new[] { (26f, new Color(40, 140, 255, 0) * 0.35f), (14f, new Color(90, 200, 255, 0) * 0.8f), (5f, Color.White) })
+                        spriteBatch.Draw(Pixel, Eye, null, shade * alpha, _laserAngle, new Vector2(0, 0.5f), new Vector2(len, thick * w), SpriteEffects.None, 0f);
+                    spriteBatch.Draw(Glow, Eye, null, new Color(120, 220, 255, 0) * alpha, 0f, glowMid, 3.2f * w, SpriteEffects.None, 0f);  // eye flare
+                    spriteBatch.Draw(Glow, end, null, new Color(120, 220, 255, 0) * alpha, 0f, glowMid, 4f * w, SpriteEffects.None, 0f);   // hot spot on the floor
+                    for (int k = 0; k < 5; k++)  // sparks kicking off where it hits
+                    {
+                        var s = end + new Vector2(RandomHelper.NextFloat(-18, 18), RandomHelper.NextFloat(-22, 2));
+                        spriteBatch.Draw(Pixel, new Rectangle((int)s.X, (int)s.Y, 3, 3), Color.Lerp(Color.White, new Color(120, 220, 255), RandomHelper.NextFloat(0, 1)) * alpha);
+                    }
+                }
+            }
+            // Summoned walls, the top of the cave wall rising out of the floor
+            foreach (var (x, _, age) in _walls)
+            {
+                if (WallTexture == null) break;
+                var box = WallBox(x, age);
+                const float S = 0.75f;
+                int srcH = (int)(box.Height / S);
+                spriteBatch.Draw(WallTexture, new Vector2(box.X - 1, box.Y), new Rectangle(0, 0, WallTexture.Width, srcH), new Color(190, 185, 180) * alpha, 0f, Vector2.Zero, new Vector2((WallHalf * 2 + 2) / WallTexture.Width, S), SpriteEffects.None, 0f);
             }
             foreach (var (x, dir) in _waves)  // same jagged bump as the Quake Hammer's, riding the hills
                 for (int k = 0; k < 5; k++)

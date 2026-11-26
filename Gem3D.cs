@@ -73,9 +73,21 @@ namespace Runner_Game
         /// Draws one gem at a screen spot. size = pixels from the center to the girdle, spin = radians around its up axis
         /// shake is the screen shake matrix so the gems shake with everything else
         /// </summary>
-        public void Draw(Vector2 at, float size, float spin, Matrix shake, float alpha)
+        public void DrawOutline(Vector2 at, float size, float spin, float thickness, float alpha)
         {
-            _graphics.DepthStencilState = DepthStencilState.Default;
+            _effect.LightingEnabled = false;
+            var (diffuse, emissive) = (_effect.DiffuseColor, _effect.EmissiveColor);
+            _effect.DiffuseColor = Vector3.One; _effect.EmissiveColor = Vector3.Zero;
+            Draw(at, size + thickness, spin, Matrix.Identity, alpha, DepthStencilState.None);
+            _effect.DiffuseColor = diffuse; _effect.EmissiveColor = emissive;
+            _effect.EnableDefaultLighting();
+        }
+
+        public void Draw(Vector2 at, float size, float spin, Matrix shake, float alpha) => Draw(at, size, spin, shake, alpha, DepthStencilState.Default);
+
+        private void Draw(Vector2 at, float size, float spin, Matrix shake, float alpha, DepthStencilState depth)
+        {
+            _graphics.DepthStencilState = depth;
             _graphics.RasterizerState = RasterizerState.CullNone;  // the y-down screen camera flips the winding, depth testing hides the back facets anyway
             _graphics.BlendState = BlendState.AlphaBlend;
 

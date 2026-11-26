@@ -14,6 +14,7 @@ Sound Effects (Content/Audio/Sfx)
 - swing.wav – Procedurally generated hammer whoosh, created with Claude (Anthropic) using Python/NumPy
 - buy.wav – Shop purchase chime, procedurally generated with Claude (Anthropic) using Python/NumPy
 - laser_charge.wav, laser_fire.wav – Laser warning whine and zap, procedurally generated with Claude (Anthropic) using Python/NumPy
+- Golem/golem_step.wav, golem_roar.wav, golem_crumble.wav, golem_grind.wav, golem_rise.wav – Stone Golem footsteps, rage growl, death crumble, punch wind up and wall summon, procedurally generated 8-bit style with Claude (Anthropic) using Python/NumPy
 - wall_warning.wav – Wall incoming sound, made by Maxwell Konneman in jsfxr (https://sfxr.me)
 - Pack/*.wav (jump, double_jump, gem, diamond, hurt, golem_hit, shield_bonk, slam, golem_die, rocket, rocket_boom, beam, heal, achievement, menu_move, menu_pick) – "50 Sound FX Effect" pack (source: please fill in)
 
@@ -34,6 +35,7 @@ Menu (Content/Images/Menu)
 - gear_bg.png, gear_frame.png, gear_socket.png, gear_cell.png, gear_cell_on.png, gear_portrait.png, gear_heart.png, gear_divider.png – Gear screen inventory set, AI-generated with Google Gemini from prompts written for this game (art direction by the developer), background tinted blue and pieces cut out with Python/Pillow
 - stat_tablet.png – Stone tablet behind the run stats on the death screen, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out with Python/Pillow
 - gear_slot.png, gear_bag.png – Crystal sockets and bag frame on the Gear screen, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out with Python/Pillow
+- floor_decor.png (Cave) – Pebbles, cracked rock, grass, mushrooms, crystal, bone, moss and root scattered on the cave floor, AI-generated with Google Gemini from a prompt written for this game, background cut out and shrunk with Claude (Anthropic) using Python/Pillow
 - item_card.png – Crystal card behind each shop item, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out with Python/Pillow
 - upgrade_panel.png – Crystal frame for the shop upgrade card, the run stat tiles and the leaderboard, AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs), background cut out with Python/Pillow
 - menu_sky.png, menu_mountains.png, menu_trees.png, menu_ground.png, menu_cave.png – AI-generated with Cloudflare Workers AI (FLUX.1 [schnell] by Black Forest Labs)

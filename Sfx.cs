@@ -16,6 +16,8 @@ namespace Runner_Game
         {
             foreach (var name in new[] { "jump", "double_jump", "gem", "diamond", "hurt", "golem_hit", "shield_bonk", "slam", "golem_die", "rocket", "rocket_boom", "beam", "heal", "achievement", "menu_move", "menu_pick" })
                 _sounds[name] = content.Load<SoundEffect>("Audio/Sfx/Pack/" + name);
+            foreach (var name in new[] { "golem_step", "golem_roar", "golem_crumble", "golem_grind", "golem_rise" })  // made for the golem, dark crunchy 8-bit rock
+                _sounds[name] = content.Load<SoundEffect>("Audio/Sfx/Golem/" + name);
         }
 
         // Rumble that goes with each sound (low motor, high motor, seconds), so a sound and its buzz always match up

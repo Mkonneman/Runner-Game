@@ -14,6 +14,98 @@ namespace Runner_Game
 
         public static void Load(Microsoft.Xna.Framework.Content.ContentManager content) => _panel = content.Load<Texture2D>("Images/Menu/upgrade_panel");
 
+        // ---- Button icons. Keyboard keys are little square keycaps, pad buttons look like the pad you're holding
+        private static Texture2D _px;
+
+        // PlayStation pads get the shapes and L1 / R2 names, everything else gets the Xbox letters
+        public static bool PlayStation
+        {
+            get
+            {
+                if (Settings.PadUi) return false;  // testing forces the Xbox look
+                string name = Microsoft.Xna.Framework.Input.GamePad.GetCapabilities(PlayerIndex.One).DisplayName?.ToUpperInvariant() ?? "";
+                return name.Contains("PS3") || name.Contains("PS4") || name.Contains("PS5") || name.Contains("DUAL") || name.Contains("PLAYSTATION") || name.Contains("SONY") || name.Contains("WIRELESS CONTROLLER");
+            }
+        }
+
+        // Xbox name -> what this pad calls it
+        public static string PadLabel(string label) => !PlayStation ? label : label switch { "LB" => "L1", "RB" => "R1", "LT" => "L2", "RT" => "R2", "Start" => "Options", _ => label };
+
+        private static bool Face(string label) => Controls.UsingPad && label is "A" or "B" or "X" or "Y";
+        private static float KeyTextScale(SpriteFont font, float h) => h * 0.62f / font.MeasureString("A").Y;
+
+        // How wide a button icon is at this height (square unless the name is long, like Shift)
+        public static float KeyWidth(SpriteFont font, string label, float h) =>
+            Face(label) ? h : MathF.Max(h, font.MeasureString(Controls.UsingPad ? PadLabel(label) : label).X * KeyTextScale(font, h) + 10);
+
+        public static void Key(SpriteBatch spriteBatch, SpriteFont font, string label, Vector2 center, float alpha, float h = 18)
+        {
+            Make(spriteBatch.GraphicsDevice);
+            if (_px == null) { _px = new Texture2D(spriteBatch.GraphicsDevice, 1, 1); _px.SetData(new[] { Color.White }); }
+            float w = KeyWidth(font, label, h), ts = KeyTextScale(font, h);
+            var box = new Rectangle((int)(center.X - w / 2), (int)(center.Y - h / 2), (int)w, (int)h);
+            void Text(string t, Color c)
+            {
+                var size = font.MeasureString(t) * ts;
+                spriteBatch.DrawString(font, t, new Vector2(center.X - size.X / 2, center.Y - size.Y / 2), c * alpha, 0f, Vector2.Zero, ts, SpriteEffects.None, 0f);
+            }
+            if (!Controls.UsingPad)
+            {
+                // keycap: dark rim, light face, thicker shade along the bottom
+                spriteBatch.Draw(_px, new Rectangle(box.X, box.Y + 2, box.Width, box.Height), new Color(30, 32, 42) * alpha);
+                spriteBatch.Draw(_px, box, new Color(60, 64, 80) * alpha);
+                spriteBatch.Draw(_px, new Rectangle(box.X + 1, box.Y + 1, box.Width - 2, box.Height - 3), new Color(215, 220, 232) * alpha);
+                Text(label, new Color(30, 32, 42));
+                return;
+            }
+            if (!Face(label))  // bumpers, triggers, Start, d-pad: a pill with the name
+            {
+                Pill(spriteBatch, new Rectangle(box.X - 1, box.Y - 1, box.Width + 2, box.Height + 2), Color.White * 0.8f * alpha);
+                Pill(spriteBatch, box, new Color(20, 24, 36) * alpha);
+                Text(PadLabel(label), Color.White);
+                return;
+            }
+            // face button: round, dark, with the letter (Xbox) or shape (PlayStation) in its color
+            Pill(spriteBatch, new Rectangle(box.X - 1, box.Y - 1, box.Width + 2, box.Height + 2), Color.White * 0.75f * alpha);
+            Pill(spriteBatch, box, new Color(22, 24, 32) * alpha);
+            if (!PlayStation)
+            {
+                var c = label switch { "A" => new Color(110, 220, 90), "B" => new Color(240, 80, 70), "X" => new Color(80, 150, 255), _ => new Color(250, 210, 60) };
+                Text(label, c);
+                return;
+            }
+            float r = h * 0.26f;
+            void Line(Vector2 a, Vector2 b, Color c) => spriteBatch.Draw(_px, a, null, c * alpha, MathF.Atan2(b.Y - a.Y, b.X - a.X), new Vector2(0, 0.5f), new Vector2(Vector2.Distance(a, b), 2f), SpriteEffects.None, 0f);
+            switch (label)
+            {
+                case "A":  // cross
+                    { var c = new Color(120, 170, 255); Line(center + new Vector2(-r, -r), center + new Vector2(r, r), c); Line(center + new Vector2(-r, r), center + new Vector2(r, -r), c); break; }
+                case "B":  // circle
+                    { var c = new Color(240, 90, 90); for (int k = 0; k < 16; k++) Line(center + r * new Vector2(MathF.Cos(k * MathHelper.TwoPi / 16), MathF.Sin(k * MathHelper.TwoPi / 16)), center + r * new Vector2(MathF.Cos((k + 1) * MathHelper.TwoPi / 16), MathF.Sin((k + 1) * MathHelper.TwoPi / 16)), c); break; }
+                case "X":  // square
+                    { var c = new Color(240, 130, 200); var p = new[] { new Vector2(-r, -r), new Vector2(r, -r), new Vector2(r, r), new Vector2(-r, r) }; for (int k = 0; k < 4; k++) Line(center + p[k], center + p[(k + 1) % 4], c); break; }
+                default:   // triangle
+                    { var c = new Color(90, 220, 170); var p = new[] { new Vector2(0, -r * 1.1f), new Vector2(r * 1.05f, r * 0.75f), new Vector2(-r * 1.05f, r * 0.75f) }; for (int k = 0; k < 3; k++) Line(center + p[k], center + p[(k + 1) % 3], c); break; }
+            }
+        }
+
+        // A line of text with a button icon in it, like "Hold [A] to crouch", centered on centerTop.X
+        public static void KeyLine(SpriteBatch spriteBatch, SpriteFont font, string before, string key, string after, Vector2 centerTop, float scale, Color color, float alpha)
+        {
+            float lineH = font.MeasureString("A").Y * scale, h = MathF.Max(16, lineH * 0.85f), gap = 6;
+            float wb = before == "" ? 0 : font.MeasureString(before).X * scale + gap, wa = after == "" ? 0 : font.MeasureString(after).X * scale + gap;
+            float kw = KeyWidth(font, key, h);
+            float x = centerTop.X - (wb + kw + wa) / 2;
+            void Text(string t, float at)
+            {
+                spriteBatch.DrawString(font, t, new Vector2(at, centerTop.Y) + new Vector2(2), Color.Black * alpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+                spriteBatch.DrawString(font, t, new Vector2(at, centerTop.Y), color * alpha, 0f, Vector2.Zero, scale, SpriteEffects.None, 0f);
+            }
+            if (before != "") Text(before, x);
+            Key(spriteBatch, font, key, new Vector2(x + wb + kw / 2, centerTop.Y + lineH / 2), alpha, h);
+            if (after != "") Text(after, x + wb + kw + gap);
+        }
+
         /// <summary>
         /// The crystal frame stretched to any size with its corners kept whole (9 slice), border is how thick the edge draws
         /// </summary>
@@ -34,15 +126,9 @@ namespace Runner_Game
         /// <summary>
         /// Round dot with a black outline (the shop's "equipped" marker)
         /// </summary>
-        // Small dark pill with a controller button name in it, like "RT"
-        public static void PadHint(SpriteBatch spriteBatch, SpriteFont font, string label, Vector2 center, float alpha)
-        {
-            var size = font.MeasureString(label) * 0.3f;
-            var box = new Rectangle((int)(center.X - size.X / 2 - 6), (int)(center.Y - size.Y / 2 - 2), (int)size.X + 12, (int)size.Y + 4);
-            Pill(spriteBatch, new Rectangle(box.X - 1, box.Y - 1, box.Width + 2, box.Height + 2), Color.White * 0.8f * alpha);
-            Pill(spriteBatch, box, new Color(20, 24, 36) * alpha);
-            spriteBatch.DrawString(font, label, new Vector2(box.X + 6, box.Y + 2), Color.White * alpha, 0f, Vector2.Zero, 0.3f, SpriteEffects.None, 0f);
-        }
+        // Button icon for a controller button name like "RT" (old name, everything calls Key now)
+        public static void PadHint(SpriteBatch spriteBatch, SpriteFont font, string label, Vector2 center, float alpha) => Key(spriteBatch, font, label, center, alpha);
+
 
         public static void Dot(SpriteBatch spriteBatch, Vector2 center, float size, Color color)
         {

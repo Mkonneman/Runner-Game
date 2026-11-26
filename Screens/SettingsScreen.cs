@@ -17,19 +17,19 @@ namespace Runner_Game.Screens
         private SoundEffect _testSound;   // plays when the sound effect volume changes so you can hear it
 
         // 3 columns: sound, gameplay, testing. Rows are numbered straight through, then Controls / Reset side by side and Back
-        private static readonly string[] Labels = { "Music", "Sound effects", "UI sounds", "Screen shake", "Rumble", "Hit stop", "Smash ring", "Skin effects", "Infinite money", "Start at", "Hitboxes", "Equip popup" };
+        private static readonly string[] Labels = { "Music", "Sound effects", "UI sounds", "Screen shake", "Rumble", "Hit stop", "Smash ring", "Skin effects", "Infinite money", "Start at", "Hitboxes", "Equip popup", "Invincible", "Only spawn", "Xbox buttons", "Start at end" };
         private static readonly string[] ColumnNames = { "Sound", "Gameplay", "Testing" };
-        private static readonly int[][] Columns = { new[] { 0, 1, 2 }, new[] { 3, 4, 5, 6, 7, 11 }, new[] { 8, 9, 10 } };
+        private static readonly int[][] Columns = { new[] { 0, 1, 2 }, new[] { 3, 4, 5, 6, 7, 11 }, new[] { 8, 9, 15, 10, 12, 13, 14 } };
         private static readonly Rectangle Panel = new Rectangle(17, 8, 820, 464);  // covers the whole title so nothing peeks over the top
-        private const int ColumnX = 37, ColumnWidth = 250, ColumnGap = 265, RowY = 118, RowSpacing = 36;  // 6 rows in the gameplay column
+        private const int ColumnX = 37, ColumnWidth = 250, ColumnGap = 265, RowY = 118, RowSpacing = 33;  // 6 rows in the gameplay column
         private static readonly Rectangle ControlsButton = new Rectangle(227, 344, 190, 40);
         private static readonly Rectangle ResetButton = new Rectangle(437, 344, 190, 40);
         private static readonly Rectangle BackButton = new Rectangle(367, 396, 120, 40);
         private static int ColumnOf(int row) => Array.FindIndex(Columns, c => Array.IndexOf(c, row) >= 0);
         private static int SpotInColumn(int row) => Array.IndexOf(Columns[ColumnOf(row)], row);
-        private const int ControlsRow = 12;
-        private const int ResetRow = 13;
-        private const int BackRow = 14;
+        private const int ControlsRow = 16;
+        private const int ResetRow = 17;
+        private const int BackRow = 18;
         private int _selected;
         private bool _confirmReset;   // Reset needs a second press so you dont wipe everything by accident
         private string _message = "";
@@ -154,6 +154,10 @@ namespace Runner_Game.Screens
                 case 9: Settings.TestStart = (Settings.TestStart + direction + Settings.StartNames.Length) % Settings.StartNames.Length; break;  // either arrow flips it
                 case 10: Settings.ShowHitboxes = !Settings.ShowHitboxes; break;
                 case 11: Settings.EquipPrompt = !Settings.EquipPrompt; break;
+                case 12: Settings.Invincible = !Settings.Invincible; break;
+                case 14: Settings.PadUi = !Settings.PadUi; break;
+                case 15: Settings.CaveEnd = !Settings.CaveEnd; break;
+                case 13: { int n = Enum.GetValues<Settings.Obstacle>().Length; Settings.OnlySpawn = (Settings.Obstacle)(((int)Settings.OnlySpawn + direction + n) % n); break; }
             }
         }
 
@@ -168,6 +172,10 @@ namespace Runner_Game.Screens
             9 => Settings.StartNames[Settings.TestStart],
             10 => Settings.ShowHitboxes ? "On" : "Off",
             11 => Settings.EquipPrompt ? "On" : "Off",
+            12 => Settings.Invincible ? "On" : "Off",
+            14 => Settings.PadUi ? "On" : "Off",
+            15 => Settings.CaveEnd ? "On" : "Off",
+            13 => Settings.OnlySpawn == Settings.Obstacle.VineSwing ? "Vine swing" : Settings.OnlySpawn.ToString(),
             _ => Percent(row switch { 0 => Settings.MusicVolume, 1 => Settings.SfxVolume, 2 => Settings.UiVolume, 3 => Settings.ShakeAmount, 4 => Settings.Rumble, 6 => Settings.SmashRingOpacity, _ => Settings.SkinFxAmount }, row >= 3),
         };
         private static string Percent(float value, bool offAtZero) => offAtZero && value == 0 ? "Off" : $"{value * 100:0}%";

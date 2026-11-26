@@ -18,7 +18,7 @@ namespace Runner_Game.Screens
     public class ArenaScreen : GameScreen
     {
         private ContentManager _content;
-        private Texture2D _wall, _pillars, _arena, _rock, _boulder, _skull, _pixel;
+        private Texture2D _wall, _pillars, _arena, _rock, _boulder, _skull, _pixel, _golemArt, _golemRageArt;
 
         // His weapon from the run, tap the smash button to swing (holding it crouches, hallway only)
         private Texture2D _hammer, _pickaxe, _smashIcon;
@@ -84,6 +84,8 @@ namespace Runner_Game.Screens
         private SoundEffect _bubbleSound;
         private bool Fighting => _arrived && !_golem.Dead;
         private bool _done;
+        private float _winT, _winSpark;  // golem's crumbling, sparks fly off him
+        private bool _leaving;           // walking off after the win
 
         public ArenaScreen(int score)
         {
@@ -103,6 +105,8 @@ namespace Runner_Game.Screens
             _rock = _content.Load<Texture2D>("Images/Gameplay/spike_rock");
             _boulder = _content.Load<Texture2D>("Images/Arena/boulder");
             _skull = _content.Load<Texture2D>("Images/Arena/skull");
+            _golemArt = _content.Load<Texture2D>("Images/Boss/golem");
+            _golemRageArt = _content.Load<Texture2D>("Images/Boss/golem_rage");
             _hammer = _content.Load<Texture2D>("Images/Gameplay/hammer");
             _pickaxe = _content.Load<Texture2D>("Images/Gameplay/pickaxe");
             _flail.Load(_content);
@@ -136,6 +140,7 @@ namespace Runner_Game.Screens
             _golem.Pixel = _pixel;
             _golem.Font = ScreenManager.BigFont;
             _golem.RockTexture = _rock;  // the cave's falling rocks, not the rolling ones
+            _golem.WallTexture = _content.Load<Texture2D>("Images/Gameplay/wall_stone");
             _golem.Landed = () => { _shakeTime = 0.35f; _thudSound.PlaySfx(0.9f, -0.4f, 0f); for (int k = 0; k < 8; k++) _dust.PlaceDust(_golem.Feet + new Vector2(RandomHelper.NextFloat(-120, 120), -4), new Color(150, 140, 130)); };
             _ability = Shop.Equipped(Slot.Ability);
             _armor = Shop.Equipped(Slot.Armor);
@@ -226,6 +231,8 @@ namespace Runner_Game.Screens
             var grip = pick ? new Vector2(9, 90) : new Vector2(6, 92);
             float swing = MathF.Atan2(tip.Y - shoulder.Y, f * (tip.X - shoulder.X)) + MathHelper.ToRadians(56);
             if (f < 0) { swing = -swing; grip.X = tex.Width - grip.X; }
+            if (pick && _golem.Glow != null)  // holy glow around the Sacred Pick's head
+                spriteBatch.Draw(_golem.Glow, tip, null, new Color(255, 225, 130, 0) * 0.9f * fade * TransitionAlpha, 0f, new Vector2(8), 4.5f + 0.5f * MathF.Sin(_time * 20), SpriteEffects.None, 0f);
             spriteBatch.Draw(tex, shoulder, null, Color.White * fade * TransitionAlpha, swing, grip, around ? _swipeReach / 92f : 1f, f < 0 ? SpriteEffects.FlipHorizontally : SpriteEffects.None, 0f);
             for (float a = start; a <= end; a += 0.04f)
             {
@@ -253,7 +260,7 @@ namespace Runner_Game.Screens
             if (!_bannerShown) { _bannerShown = true; ShowAreaName(); }
 
             // Floor follows the dips and humps, on the ground he sticks to it so slopes are smooth instead of little falls
-            _runner.MinX = 60; _runner.MaxX = 794;
+            _runner.MinX = _leaving ? -200 : 60; _runner.MaxX = 794;
             _runner.GroundY = Ground + Stepped(_runner.Position.X + _scroll);
             _runner.Scale = MathHelper.Lerp(4f, 3f, Opening(_runner.Position.X + _scroll));  // smaller in the big room
             if (_runner.IsOnGround) _runner.Position = new Vector2(_runner.Position.X, _runner.GroundY);
@@ -381,7 +388,7 @@ namespace Runner_Game.Screens
                 _boulders[b] = (pos, radius, speed, spin);
                 if (RandomHelper.Next(0, 1) == 0) _dust.PlaceDust(pos + new Vector2(radius, 0), _boulderTints[b]);  // trails off the back (right side, middle)
                 if (pos.X < -radius - 20) { _boulders.RemoveAt(b); _boulderTints.RemoveAt(b); continue; }
-                if (_hurtTime <= 0 && new BoundingCircle(pos, radius * (radius < 32 ? 0.85f : 1f)).CollidesWith(_runner.Bounds))
+                if (_hurtTime <= 0 && !Settings.Invincible && new BoundingCircle(pos, radius * (radius < 32 ? 0.85f : 1f)).CollidesWith(_runner.Bounds))
                 {
                     _health -= _armor == ItemId.HazardHat ? Shop.Value(ItemId.HazardHat) * 1.36f : 0.34f;  // hat softens rocks like the caves
                     _hurtTime = 1f; _gotHit = true;
@@ -396,14 +403,40 @@ namespace Runner_Game.Screens
                 }
             }
 
-            // Golem's down, a beat to watch it crumble then the run counts as cleared
+            // Golem's down: a big freeze on the kill, then he crumbles with sparks bursting off him and the screen shaking
             if (InArena) Achievements.Unlock("arena");
-            if (_golem.Dead && (_clearTimer += dt) > 0.8f)
+            if (_golem.Dying)
+            {
+                if (_winT == 0) { HitStop.Freeze(0.3f); _shakeTime = 0.6f; Kick(_golem.Body.Center, 2f); Rumble.Death(); }
+                _winT += dt;
+                if (_winT < 2.4f)
+                {
+                    _shakeTime = MathF.Max(_shakeTime, 0.08f);
+                    if ((_winSpark -= dt) <= 0)
+                    {
+                        _winSpark = 0.11f;
+                        float a = RandomHelper.NextFloat(0, MathHelper.TwoPi), r = RandomHelper.NextFloat(0, _golem.Body.Radius);
+                        var at = _golem.Body.Center + new Vector2(MathF.Cos(a), MathF.Sin(a)) * r;
+                        _crash.PlaceCrash(at, RandomHelper.Next(0, 2) switch { 0 => new Color(255, 210, 90), 1 => new Color(120, 220, 255), _ => new Color(150, 140, 130) });
+                        _crashSound.PlaySfx(0.35f, RandomHelper.NextFloat(-0.3f, 0.3f), 0f);
+                    }
+                }
+            }
+            if (_golem.Dead && !_leaving && (_clearTimer += dt) > 0.8f)
             {
                 Achievements.Unlock("golem");
                 Achievements.Add("golems");
                 if (!_gotHit) Achievements.Unlock("flawless");
-                _score += 2000; End(DeathCause.Door);
+                _score += 2000;
+                _leaving = true;
+                _runner.AutoWalkTo = -140;  // heads back out the way he came
+                _runner.FlipToFacing = true;
+            }
+            if (_leaving)
+            {
+                _runner.MinX = -200;
+                if (_runner.Position.X < 170) Iris.Close();  // circle shuts on him as he reaches the edge
+                if (Iris.Closed && !_done) Win();
             }
         }
 
@@ -440,7 +473,7 @@ namespace Runner_Game.Screens
 
         private void HurtPlayer(Color tint, string kind = "hit")
         {
-            if (_hurtTime > 0 || _done) return;
+            if (_hurtTime > 0 || _done || Settings.Invincible) return;
             if (kind == "ground" && _armor == ItemId.HoverBoots) return;  // floats over the shockwaves
             Sfx.Play("hurt", 0.7f);
             if (_bubbleLeft > 0)  // bubble pops instead
@@ -559,6 +592,17 @@ namespace Runner_Game.Screens
             Banner.Show(Banner.Lair);
         }
 
+        // Beat him: pay out, save the run, and it's back to the title (the circle opens on him there)
+        private void Win()
+        {
+            _done = true;
+            int gems = RunStats.GemsFor(_score);
+            Shop.AddGems(gems);
+            GameOverScreen.RecordRun(_score, DeathCause.Door);
+            TitleScreen.ReopenNext();
+            ExitScreen();
+        }
+
         private void End(DeathCause cause)
         {
             _done = true;
@@ -625,6 +669,8 @@ namespace Runner_Game.Screens
             // Him (blinks while he can't get hurt again)
             if (_hurtTime <= 0 || (int)(_hurtTime * 10) % 2 == 0)
             {
+                float up = MathHelper.Clamp((_runner.GroundY - _runner.Position.Y) / 300f, 0, 1), sw = 56 * (1 - up * 0.5f), sh = 10 * (1 - up * 0.5f);
+                spriteBatch.Draw(_disc, new Vector2(_runner.Bounds.X + _runner.Bounds.Width / 2, _runner.GroundY - 3), null, Color.Black * 0.5f * (1 - up * 0.7f) * TransitionAlpha, 0f, new Vector2(_disc.Width / 2f), new Vector2(sw / _disc.Width, sh / _disc.Height), SpriteEffects.None, 0f);  // his shadow, shrinks as he jumps
                 _skinFx.DrawBehind(spriteBatch, _runner, TransitionAlpha);
                 _runner.Color = (_mirrorFlash > 0 ? new Color(120, 210, 255) : Color.White) * TransitionAlpha;  // laser blue while the helm is bouncing it
                 _runner.Draw(_done ? new GameTime() : gameTime, spriteBatch);
@@ -702,7 +748,7 @@ namespace Runner_Game.Screens
                 {
                     int id = _floor.TileAtLooping(0, _scroll, sx, FloorTile);
                     int inTile = (int)((sx + _scroll) % Tilemap.TileSize) / 4 * 4;
-                    spriteBatch.Draw(_floor.Tileset, new Vector2(sx, top - Tilemap.TileSize + 8), new Rectangle(id * Tilemap.TileSize + inTile, 0, 4, Tilemap.TileSize), Color.White * TransitionAlpha, 0f, Vector2.Zero, 1f, SpriteEffects.FlipVertically, 0f);
+                    spriteBatch.Draw(_floor.Tileset, new Vector2(sx, top - Tilemap.TileSize + 8), new Rectangle(id * Tilemap.TileSize + inTile, 0, 4, Tilemap.TileSize), new Color(85, 85, 92) * TransitionAlpha, 0f, Vector2.Zero, 1f, SpriteEffects.FlipVertically, 0f);  // darker than the floor so they don't match
                 }
                 spriteBatch.Draw(_pixel, new Rectangle(sx, bottom, 4, viewport.Height - bottom), Color.Black * TransitionAlpha);
             }
@@ -711,18 +757,30 @@ namespace Runner_Game.Screens
             // HUD, score, health and how close the arena is
             spriteBatch.Begin();
             var big = ScreenManager.BigFont;
-            Hud.PopText(spriteBatch, big, $"Score: {_score}", new Vector2(25, 20), Color.Yellow, 0.7f * RunStats.ScoreScale, TransitionAlpha);
-            var gemTextSize = Hud.PopText(spriteBatch, big, RunStats.GemsFor(_score).ToString(), new Vector2(48, 58), Color.Lerp(Color.Cyan, Color.White, 0.2f), 0.5f, TransitionAlpha);  // same gem count as the caves
-            _hudGem = new Vector2(34, 58 + gemTextSize.Y * 0.55f);
-            RunStats.DrawScorePop(spriteBatch, big, new Vector2(25, 20) + big.MeasureString($"Score: {_score}") * 0.7f + new Vector2(10, 0), TransitionAlpha);
-            RunStats.DrawCombo(spriteBatch, big, _pixel, viewport.Width - 16, 66, TransitionAlpha);  // under the weapon and ability icons
+            // no score or gems in the hall and boss fight, nothing to look at but him
+            if (!InArena) RunStats.DrawCombo(spriteBatch, big, _pixel, viewport.Width - 16, 66, TransitionAlpha);  // under the weapon and ability icons, hidden for the boss fight
             // How far to the arena, a bar across the top
             // Rounded bar with a glow, how close the arena is, then the golem's health once you're in
-            int barW = 270, barX = viewport.Width / 2 - barW / 2;
+            // Boss fight: a fat health bar with his head on the end
+            int barW = InArena ? 320 : 270, barH = InArena ? 20 : 10, barX = viewport.Width / 2 - barW / 2 - (InArena ? 20 : 0), barY = InArena ? 20 : 12;
             float barFill = InArena ? _golem.Hp / (float)Golem.MaxHp : Progress;
             var barColor = InArena ? (_golem.Immune ? new Color(120, 170, 255) : _golem.Enraged ? new Color(170, 90, 255) : new Color(200, 50, 40)) : new Color(110, 190, 110);  // purple once he rages
-            Hud.Bar(spriteBatch, new Rectangle(barX, 18, barW, 10), barFill, barColor, (float)gameTime.TotalGameTime.TotalSeconds, TransitionAlpha);
-            spriteBatch.Draw(_skull, new Vector2(barX + barW + 6, 23 - 10.5f), null, Color.White * TransitionAlpha, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0f);  // the lair
+            Hud.Bar(spriteBatch, new Rectangle(barX, barY, barW, barH), barFill, barColor, (float)gameTime.TotalGameTime.TotalSeconds, TransitionAlpha);
+            if (InArena)
+            {
+                // halfway notch, he rages once it drops past here
+                spriteBatch.Draw(_pixel, new Rectangle(barX + barW / 2 - 2, barY - 5, 4, barH + 10), Color.Black * 0.8f * TransitionAlpha);
+                spriteBatch.Draw(_pixel, new Rectangle(barX + barW / 2 - 1, barY - 4, 2, barH + 8), (_golem.Enraged ? new Color(200, 150, 255) : Color.White) * TransitionAlpha);
+                // his head and shoulders cut out of frame 0, flinches when hit, glows blue while he can't be hurt
+                var head = new Rectangle(36, 23, 30, 20);
+                var at = new Vector2(barX + barW + 8, barY + barH / 2f - 30);
+                var tint = _golem.Immune ? new Color(150, 200, 255) : Color.White;
+                Hud.Glow(spriteBatch, at + new Vector2(33, 24), new Vector2(90, 70), barColor * 0.35f * TransitionAlpha);
+                foreach (var o in new[] { new Vector2(-2, 0), new Vector2(2, 0), new Vector2(0, -2), new Vector2(0, 2) })  // dark outline so he pops off the cave
+                    spriteBatch.Draw(_golem.Enraged ? _golemRageArt : _golemArt, at + o, head, Color.Black * 0.8f * TransitionAlpha, 0f, Vector2.Zero, 2.2f, SpriteEffects.FlipHorizontally, 0f);
+                spriteBatch.Draw(_golem.Enraged ? _golemRageArt : _golemArt, at, head, tint * TransitionAlpha, 0f, Vector2.Zero, 2.2f, SpriteEffects.FlipHorizontally, 0f);
+            }
+            else spriteBatch.Draw(_skull, new Vector2(barX + barW + 6, barY + 5 - 10.5f), null, Color.White * TransitionAlpha, 0f, Vector2.Zero, 3f, SpriteEffects.None, 0f);  // the lair
             if (_weapon != null && Opening(_runner.Position.X + _scroll) > 0.99f)  // shows up once the weapon is back
             {
                 var iconPos = new Vector2(viewport.Width - 64, 12);
@@ -748,15 +806,12 @@ namespace Runner_Game.Screens
             _hintTime = InArena ? 0 : MathHelper.Clamp((0.5f - Progress) / 0.1f, 0, 1);
             if (_hintTime > 0)
             {
-                string tip = $"Hold {Controls.Label(PlayerAction.Smash)} to crouch";
-                var tipSize = ScreenManager.MenuFont.MeasureString(tip) * 0.45f;
                 float fade = _hintTime * 0.8f;
-                spriteBatch.DrawString(ScreenManager.MenuFont, tip, new Vector2(viewport.Width / 2 - tipSize.X / 2, viewport.Height - tipSize.Y - 16), Color.White * fade * TransitionAlpha, 0f, Vector2.Zero, 0.45f, SpriteEffects.None, 0f);
+                Hud.KeyLine(spriteBatch, ScreenManager.MenuFont, "Hold", Controls.Label(PlayerAction.Smash), "to crouch", new Vector2(viewport.Width / 2, viewport.Height - 44), 0.45f, Color.White, fade * TransitionAlpha);
             }
             Banner.Draw(spriteBatch, TransitionAlpha);
             RunStats.DrawCountdown(spriteBatch, big, TransitionAlpha);
             spriteBatch.End();
-            _gem3D.Draw(_hudGem, 9, (float)gameTime.TotalGameTime.TotalSeconds * 2f, Matrix.Identity, TransitionAlpha);  // after the batch, 3D cant go inside one
         }
     }
 }

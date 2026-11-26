@@ -16,7 +16,7 @@ namespace Runner_Game.Screens
     {
         private Texture2D _pixel;
         private Texture2D _background;  // dark cave gear room, it's a full screen now not a popup
-        private Texture2D _frame, _socket, _cell, _cellOn, _portrait, _heart, _divider;  // the stone inventory set
+        private Texture2D _card, _portrait, _heart;  // shop's crystal card for the slots and bag spots
         private Texture2D _button;
         private SpriteFont _backFont;
         private Song _music;
@@ -31,7 +31,7 @@ namespace Runner_Game.Screens
         private const int Cell = 48;
         private const int BagColumns = 7;
         private const int BagRows = 4;  // 28 spots
-        private static readonly Rectangle Panel = new Rectangle(58, 50, 738, 390);  // smaller so the cave shows around it
+        private static readonly Rectangle Panel = new Rectangle(36, 34, 782, 418);  // roomy enough that nothing touches the crystal frame
         private static readonly Rectangle Portrait = new Rectangle(86, 78, 172, 131);
         private static readonly Rectangle BagArea = new Rectangle(380, 80, BagColumns * Cell, BagRows * Cell);
         private static readonly Rectangle InfoBox = new Rectangle(380, 316, 388, 100);
@@ -73,13 +73,9 @@ namespace Runner_Game.Screens
             _background = content.Load<Texture2D>("Images/Menu/gear_bg");
             _music = content.Load<Song>("Audio/Music/minor_motif");
             _glow = content.Load<Texture2D>("Images/Particles/particle");
-            _frame = content.Load<Texture2D>("Images/Menu/gear_frame");
-            _socket = content.Load<Texture2D>("Images/Menu/gear_socket");
-            _cell = content.Load<Texture2D>("Images/Menu/gear_cell");
-            _cellOn = content.Load<Texture2D>("Images/Menu/gear_cell_on");
+            _card = content.Load<Texture2D>("Images/Shop/item_card");
             _portrait = content.Load<Texture2D>("Images/Menu/gear_portrait");
             _heart = content.Load<Texture2D>("Images/Menu/gear_heart");
-            _divider = content.Load<Texture2D>("Images/Menu/gear_divider");
             _player = content.Load<Texture2D>("Images/Gameplay/player_run");
             _icons = Array.ConvertAll(Shop.Items, item => content.Load<Texture2D>(item.Icon));
             _lastMouse = VirtualMouse.GetState();
@@ -89,7 +85,7 @@ namespace Runner_Game.Screens
         {
             base.Update(gameTime, otherScreenHasFocus, coveredByOtherScreen);
             _messageTime -= (float)gameTime.ElapsedGameTime.TotalSeconds;
-            if (!IsExiting) Music.Play(_music, 3.5f);  // the screen underneath brings its own song back when we leave
+            if (!IsExiting) Music.Play(_music, 3.5f, resume: true);  // the screen underneath brings its own song back when we leave
         }
 
         // Puts an item into a slot (only its own slot), says why if it can't
@@ -243,7 +239,8 @@ namespace Runner_Game.Screens
                 float flicker = 0.22f + 0.05f * MathF.Sin(time * 5 + seed) + 0.03f * MathF.Sin(time * 13 + seed * 2);
                 spriteBatch.Draw(_glow, torch, null, new Color(255, 140, 50, 0) * flicker * a, 0f, new Vector2(8), 5.5f, SpriteEffects.None, 0f);
             }
-            Hud.Frame(spriteBatch, _frame, 18, Panel, 18, Color.White * 0.88f * a);  // a touch see-through so the cave shows
+            spriteBatch.Draw(_pixel, new Rectangle(Panel.X + 8, Panel.Y + 8, Panel.Width - 16, Panel.Height - 16), new Color(10, 20, 34) * 0.88f * a);  // navy like the shop, a touch see-through
+            Hud.Frame(spriteBatch, Panel, 18, Color.White * a);  // crystal frame
             DrawText("Gear", new Vector2(427 - ScreenManager.TitleFont.MeasureString("Gear").X * 0.3f, 6), Color.Yellow, 0.6f, ScreenManager.TitleFont);
 
             // The miner running in place in his little cave nook
@@ -267,7 +264,7 @@ namespace Runner_Game.Screens
                 var rect = SlotRectangle(s);
                 bool focus = _area == 0 && _index == s;
                 bool fits = carrying is ItemId c && (int)Shop.Get(c).Slot == s;
-                MenuButton.Draw(spriteBatch, _socket, rect, (fits ? new Color(140, 255, 160) : focus ? Color.Yellow : Color.White) * a, true, focus);
+                MenuButton.Draw(spriteBatch, _card, rect, (fits ? new Color(140, 255, 160) : focus ? Color.Yellow : Color.White) * a, true, focus);
                 float nameScale = Fit(SlotNames[s], 0.3f, 80);
                 DrawText(SlotNames[s], new Vector2(rect.Center.X - _backFont.MeasureString(SlotNames[s]).X * nameScale / 2, rect.Bottom + 2), focus ? Color.Yellow : Color.LightGray, nameScale);
                 if (Shop.Equipped((Slot)s) is ItemId on && on != _dragging)
@@ -285,7 +282,7 @@ namespace Runner_Game.Screens
             {
                 var rect = BagRectangle(spot);
                 bool focus = _area == 1 && _index == spot && spot < Math.Max(1, bag.Length);
-                spriteBatch.Draw(focus ? _cellOn : _cell, rect, Color.White * a);
+                MenuButton.Draw(spriteBatch, _card, rect, (focus ? Color.White : new Color(120, 135, 175)) * a, false);
                 if (spot >= bag.Length || bag[spot].Id == _dragging) continue;
                 var inside = new Rectangle(rect.X + 6, rect.Y + 6, rect.Width - 12, rect.Height - 12);
                 Rarity.DrawGlow(spriteBatch, MenuButton.Inside(inside), Rarity.Of(bag[spot].Id), a);
@@ -295,7 +292,7 @@ namespace Runner_Game.Screens
             if (bag.Length == 0) DrawText("Buy more in the Shop!", new Vector2(BagArea.X + 20, BagArea.Center.Y - 8), Color.Gray, 0.35f);
 
             // Details under a stone divider: name and level, type, what it does now, the next upgrade
-            spriteBatch.Draw(_divider, new Rectangle(InfoBox.Center.X - 186, InfoBox.Y - 34, 372, 26), Color.White * a);
+            spriteBatch.Draw(_pixel, new Rectangle(InfoBox.X, InfoBox.Y - 20, InfoBox.Width, 2), Color.Cyan * 0.35f * a);  // thin divider like the run stats
             if (_messageTime > 0) DrawText(_message, new Vector2(InfoBox.X, InfoBox.Y + 4), Color.Yellow, Fit(_message, 0.38f, InfoBox.Width));
             else if (_selected is ItemId sel)
             {
@@ -315,7 +312,7 @@ namespace Runner_Game.Screens
                 {
                     var at = GemAt(l);
                     var color = Rarity.Colors[Rarity.TierAt(sel, l + 1)];
-                    float gemSize = 11 * (l == level ? 1f + 0.12f * MathF.Sin((float)gameTime.TotalGameTime.TotalSeconds * 6) : 1f);
+                    float gemSize = 11 * (l == Math.Min(level, item.MaxLevel - 1) ? 1f + 0.12f * MathF.Sin((float)gameTime.TotalGameTime.TotalSeconds * 6) : 1f);
                     spriteBatch.Draw(_pixel, at, null, Color.Black * a, MathHelper.PiOver4, new Vector2(0.5f), gemSize + 4, SpriteEffects.None, 0f);
                     spriteBatch.Draw(_pixel, at, null, (l < level ? color : l == level ? color * 0.45f : new Color(60, 60, 70)) * a, MathHelper.PiOver4, new Vector2(0.5f), gemSize, SpriteEffects.None, 0f);
                 }

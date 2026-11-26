@@ -29,9 +29,9 @@ namespace Runner_Game.Screens
         private const int IcePoints = 50, VinePoints = 50, BouncePoints = 25, MushroomPoints = 50;
         private const float VineWindUp = 0.35f, VineLungeSpeed = 650f, VineReach = 360f, VineGrab = 0.9f, VinePull = 320f;
         private const float VineTop = -38f;              // clump is half tucked up in the roof
-        private const float VineAnchorY = VineTop + 124; // bottom of the vine clump, where the grabby one comes out
+        private const float VineAnchorY = VineTop + 96;  // up inside the vine clump, the clump hides where it starts
         private const float MushroomBounce = 1.1f, MushroomSquash = 0.4f;
-        private static readonly Color IceColor = new(150, 220, 255), VineColor = new(70, 190, 60), MushroomColor = new(170, 90, 255);
+        private static readonly Color IceColor = new(150, 220, 255), VineColor = new(70, 190, 60), GrabVineColor = new(35, 105, 35), MushroomColor = new(170, 90, 255);
 
         // Diamonds along the bounce path off a mushroom (x ahead of it, y on screen), so using it pays
         private static readonly (float, float)[] BounceArc = { (30, 213), (78, 110), (126, 95), (174, 169), (222, 332) };
@@ -56,7 +56,7 @@ namespace Runner_Game.Screens
         }
 
         // Call after anything spawns
-        private void Spawned() => _stackOk = RandomHelper.Next(0, 4) == 0;
+        private void Spawned() { _stackOk = RandomHelper.Next(0, 4) == 0; _spawns++; }
 
         // Everything already out there as a strip along the floor
         private IEnumerable<(float L, float R, Lane Lane)> Placed()
@@ -94,6 +94,7 @@ namespace Runner_Game.Screens
 
         // The spikes under the rock chunk, not the rock
         private BoundingRectangle IceBounds(Icicle ice) => new(ice.X - 20, ice.Y + 22, 40, _icicleTexture.Height - 30);
+        private BoundingRectangle IceHurtBounds(Icicle ice) => new(ice.X - 20, ice.Y + 22, 40, _icicleTexture.Height - 52);  // bottom of the tip doesn't hurt
         private static Vector2 Middle(BoundingRectangle box) => new(box.X + box.Width / 2, box.Y + box.Height / 2);
 
         private Vector2 Chest() => new(_runner.Bounds.X + _runner.Bounds.Width / 2, _runner.Bounds.Y + 40);
@@ -131,7 +132,7 @@ namespace Runner_Game.Screens
             if (_iceTimer <= 0)
             {
                 float x = width + 40;
-                if (cave != 0) _iceTimer = 1f;
+                if (cave != 0 && !Only(Settings.Obstacle.Icicles)) _iceTimer = 1f;
                 else if (!Fits(x - 30, x + 30, Lane.Ceiling, -1)) _iceTimer = 0.3f;  // over holes is fine, it only drops when he's close
                 else { _icicles.Add(new Icicle { X = x }); Spawned(); _iceTimer = RandomHelper.NextFloat(MathHelper.Lerp(5f, 3.5f, Difficulty * 3), MathHelper.Lerp(8f, 6f, Difficulty * 3)); }  // blue is the first third of the ramp
             }
@@ -155,7 +156,7 @@ namespace Runner_Game.Screens
                 }
                 else if (RandomHelper.Next(0, 20) == 0) _hoverDust.PlaceDust(new Vector2(ice.X + RandomHelper.NextFloat(-16, 16), box.Top + RandomHelper.NextFloat(10, box.Height)), Color.White);  // little twinkles while it hangs
                 box = IceBounds(ice);
-                if (_safeTime <= 0 && _hurtTime <= 0 && body.CollidesWith(box))
+                if (_safeTime <= 0 && _hurtTime <= 0 && body.CollidesWith(IceHurtBounds(ice)))
                 {
                     if (Blocked()) { BreakIcicle(i, true); continue; }
                     Hurt(_armor == ItemId.HazardHat ? Shop.Value(ItemId.HazardHat) : RockDamage, IceColor, DeathCause.Icicle);
@@ -172,7 +173,7 @@ namespace Runner_Game.Screens
             if (_vineTimer <= 0)
             {
                 float x = width + 80;
-                if (cave != 2) _vineTimer = 1f;
+                if (cave != 2 && !Only(Settings.Obstacle.Vines)) _vineTimer = 1f;
                 else if (!Fits(x - VineHalf, x + VineHalf, Lane.Ceiling, -1) || !Fits(x - VineHalf, x + GrabZone, Lane.Grab, -1) || OverGap(x - 100, 400)) _vineTimer = 0.3f;  // no wall coming while it holds him, no hole to drop him in
                 else { _vines.Add(new Vine { X = x }); Spawned(); _vineTimer = RandomHelper.NextFloat(5f, 8f); }
             }
@@ -236,13 +237,13 @@ namespace Runner_Game.Screens
             if (_mushTimer <= 0)
             {
                 float x = width + 60;
-                if (cave != 2) _mushTimer = 1f;
+                if (cave != 2 && !Only(Settings.Obstacle.Mushrooms)) _mushTimer = 1f;
                 else if (!Fits(x - MushroomHalf, x + MushroomHalf, Lane.Floor, 60) || !Fits(x - 40, x + BouncePath, Lane.Air, -1)) _mushTimer = 0.3f;  // clear sky along the bounce
                 else
                 {
                     _mushrooms.Add((x, 0));
                     Spawned();
-                    foreach (var (dx, y) in BounceArc) _diamonds.Add(new Vector2(x + dx, y));
+                    foreach (var (dx, y) in BounceArc) _diamonds.Add(new Vector2(x + dx * Pace, y));  // the world moves faster later, so the arc stretches to match his bounce
                     _mushTimer = RandomHelper.NextFloat(6f, 10f);
                 }
             }
@@ -396,7 +397,7 @@ namespace Runner_Game.Screens
         // Hitboxes setting: icicles (cyan), the vine tip that grabs (green), mushroom bounce zone for his feet (magenta)
         private void DrawHazardHitboxes()
         {
-            foreach (var ice in _icicles) DrawBox(IceBounds(ice), Color.Cyan * TransitionAlpha);
+            foreach (var ice in _icicles) { DrawBox(IceBounds(ice), Color.Cyan * TransitionAlpha); DrawBox(IceHurtBounds(ice), Color.Red * TransitionAlpha); }
             foreach (var vine in _vines)
             {
                 var tip = VineTip(vine);
@@ -409,6 +410,7 @@ namespace Runner_Game.Screens
         private void DrawHazards()
         {
             var sb = ScreenManager.SpriteBatch;
+            DrawSwing();
             foreach (var ice in _icicles)
             {
                 float jitter = ice.Wait >= 0 && ice.Wait < IceShakeTime ? MathF.Sin(ice.Wait * 70) * 2.5f : 0;
@@ -419,8 +421,8 @@ namespace Runner_Game.Screens
             foreach (var vine in _vines)
             {
                 float rustle = vine.Phase == 1 ? MathF.Sin(vine.T * 50) * 2f : 0;  // shivers right before it lunges
-                sb.Draw(_vineTexture, new Vector2(vine.X - _vineTexture.Width / 2f + rustle, VineTop), Color.White * TransitionAlpha);
                 if (TendrilOut(vine)) DrawTendril(vine);
+                sb.Draw(_vineTexture, new Vector2(vine.X - _vineTexture.Width / 2f + rustle, VineTop), Color.White * TransitionAlpha);  // over the tendril so it grows out of the bush
             }
             foreach (var (x, squash) in _mushrooms)
             {
@@ -447,14 +449,14 @@ namespace Runner_Game.Screens
                 float t = k / (float)N;
                 pts[k] = a + dir * t + side * MathF.Sin(t * 9f - _scrollTime * 14f) * wiggle * MathF.Sin(MathHelper.Pi * t);
             }
-            var shades = new[] { (8f, new Color(10, 30, 12)), (5f, VineColor), (1.5f, new Color(160, 240, 120)) };
+            var shades = new[] { (8f, new Color(6, 20, 8)), (5f, GrabVineColor), (1.5f, new Color(80, 150, 60)) };  // darker than the swing vine, it's the mean one
             foreach (var (thick, color) in shades)
                 for (int k = 0; k < N; k++)
                     Segment(pts[k], pts[k + 1], thick * (1 - 0.45f * k / N), color * TransitionAlpha);  // thinner toward the tip
             for (int k = 2; k < N; k += 3)
-                Segment(pts[k], pts[k] + (k % 2 == 0 ? side : -side) * 7 + (pts[k + 1] - pts[k]) * 0.3f, 4f, new Color(50, 150, 45) * TransitionAlpha);
+                Segment(pts[k], pts[k] + (k % 2 == 0 ? side : -side) * 7 + (pts[k + 1] - pts[k]) * 0.3f, 4f, new Color(30, 95, 30) * TransitionAlpha);
             var tipDir = SafeNormal(pts[N] - pts[N - 1]);
-            Segment(pts[N], pts[N] + tipDir * 6 + new Vector2(-tipDir.Y, tipDir.X) * 5, 3f, VineColor * TransitionAlpha);
+            Segment(pts[N], pts[N] + tipDir * 6 + new Vector2(-tipDir.Y, tipDir.X) * 5, 3f, GrabVineColor * TransitionAlpha);
         }
 
         private void Segment(Vector2 from, Vector2 to, float thick, Color color)

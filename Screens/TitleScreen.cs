@@ -45,6 +45,10 @@ namespace Runner_Game.Screens
         private float UiAlpha => TransitionAlpha * _caveSlide / CaveHidden;  // menu fades out as the cave slides in
         private bool _gameStarted;
 
+        // Coming back after beating the golem: the arena closed the circle, the title opens it back up on him
+        private static bool _reopen;  // set by the arena, picked up once the title shows again
+        public static void ReopenNext() => _reopen = true;
+
         // Timer for the blinking "Press Enter" text
         private float _blinkTimer;
 
@@ -229,6 +233,12 @@ namespace Runner_Game.Screens
 
             // Reset once the game screen fully covers the title
             if (ScreenState == ScreenState.Hidden) ResetScene();
+            if (_reopen && ScreenState != ScreenState.Hidden)
+            {
+                _reopen = false;
+                Iris.Center = new Vector2(_runner.Bounds.X + _runner.Bounds.Width / 2, _runner.Bounds.Y + _runner.Bounds.Height / 2);
+                Iris.Start();
+            }
 
             // Background scrolls until Enter, then he runs into the cave and the game starts
             if (!_enteringCave)
@@ -254,7 +264,7 @@ namespace Runner_Game.Screens
             // Keep the title music going while the title is showing
             // (it gets stopped when the player crashes, and the boss song keeps playing after the arena so swap that out too)
             // only once nothing is left above it, a run fading out after Play Again would let it steal the new run's song
-            if (!coveredByOtherScreen && !_gameStarted && ScreenManager.GetScreens()[^1] == this) Music.Play(_titleMusic, 2f);
+            if (!coveredByOtherScreen && !_gameStarted && ScreenManager.GetScreens()[^1] == this) Music.Play(_titleMusic, 2f, resume: true);
         }
 
         public override void HandleInput(GameTime gameTime, InputState input)
@@ -366,7 +376,7 @@ namespace Runner_Game.Screens
             // Blinks on and off about twice a second (hidden once he heads in)
             if (!_enteringCave && (int)(_blinkTimer * 2) % 2 == 0)
             {
-                DrawCentered(Controls.UsingPad ? "Press RT to Start" : "Press Enter to Start", 216, Color.Yellow, 0.75f, ScreenManager.BigFont);
+                Hud.KeyLine(spriteBatch, ScreenManager.BigFont, "Press", Controls.UsingPad ? "RT" : "Enter", "to Start", new Vector2(viewport.Width / 2f, 250), 0.75f, Color.Yellow, UiAlpha);
             }
 
             DrawLeaderboard(spriteBatch, viewport);

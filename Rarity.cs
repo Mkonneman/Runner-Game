@@ -5,7 +5,7 @@ using Microsoft.Xna.Framework.Graphics;
 namespace Runner_Game
 {
     /// <summary>
-    /// Item rarity, Grey -> Blue -> Purple -> Yellow -> Red. Base tier comes from the price, maxing an item bumps it up one
+    /// Item rarity, Grey -> Blue -> Purple -> Yellow -> Red. Upgrades climb to purple, red is only for the legendary stuff
     /// Also draws the soft glow + floating sparkles behind items and names in that color
     /// </summary>
     public static class Rarity
@@ -14,14 +14,20 @@ namespace Runner_Game
 
         public static int Tier(ItemId id) => TierAt(id, Shop.Level(id));
 
-        // Tier at a given level (0 = not owned shows the base), the last level goes up a color (Rocket Launcher yellow -> red)
+        // Red is saved for the best loot: homing rockets and the tilting Mirror Helm beam
+        private static bool Legendary(ItemId id) => id == ItemId.RocketLauncher || id == ItemId.MirrorHelm || id == ItemId.Pickaxe;  // the Sacred Pick too
+
+        // Tier at a given level (0 = not owned shows the base)
+        // Upgradable gear climbs from grey / blue up to purple at max (legendary: purple -> yellow -> red)
+        // One-level things (skins, the drill...) keep a color from their price, topping out at yellow
         public static int TierAt(ItemId id, int level)
         {
             var item = Shop.Get(id);
-            int tier = id == ItemId.MirrorHelm ? 3  // hand picked, maxed it hits red
-                : item.Price == 0 ? 0 : item.Price <= 60 ? 1 : item.Price <= 250 ? 2 : item.Price < 800 ? 3 : 4;  // starter / cheap / mid / top shelf / legendary
-            if (item.MaxLevel > 1 && level >= item.MaxLevel) tier++;
-            return Math.Min(tier, Colors.Length - 1);
+            if (item.MaxLevel <= 1)
+                return Legendary(id) ? 4 : item.Price == 0 ? 0 : item.Price <= 60 ? 1 : item.Price <= 250 ? 2 : 3;
+            int from = Legendary(id) ? 2 : item.Price == 0 ? 0 : item.Price < 300 ? 1 : 2, to = Legendary(id) ? 4 : item.Price >= 300 ? 3 : 2;  // pricey stuff starts purple and tops out yellow
+            if (level >= item.MaxLevel) return to;
+            return from + (to - from) * Math.Max(0, level - 1) / (item.MaxLevel - 1);  // only the last level reaches the top color
         }
 
         public static Color Of(ItemId id) => Colors[Tier(id)];

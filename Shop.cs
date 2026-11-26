@@ -54,11 +54,11 @@ namespace Runner_Game
             // Weapons (what Smash does)
             new() { Id = ItemId.Hammer, Name = "Hammer", Slot = Slot.Weapon, Icon = "Images/Items/hammer", Price = 0, UpgradePrice = 15,
                     Values = new[] { 3f, 2.5f, 2.1f, 1.7f }, Show = v => $"Smash walls and rocks, {v:0.#}s cooldown" },
-            new() { Id = ItemId.Pickaxe, Name = "Pickaxe", Slot = Slot.Weapon, Icon = "Images/Items/pickaxe", Price = 50, UpgradePrice = 40,
+            new() { Id = ItemId.Pickaxe, Name = "Sacred Pick", Slot = Slot.Weapon, Icon = "Images/Items/pickaxe", Price = 600, UpgradePrice = 200,
                     Values = new[] { 1.4f, 1.15f, 0.9f }, Show = v => $"Quick, breaks spikes too, reach grows each level, {v:0.##}s cooldown" },
-            new() { Id = ItemId.QuakeHammer, Name = "Quake Hammer", Slot = Slot.Weapon, Icon = "Images/Items/quake_hammer", Price = 200, UpgradePrice = 100,
+            new() { Id = ItemId.QuakeHammer, Name = "Quake Hammer", Slot = Slot.Weapon, Icon = "Images/Items/quake_hammer", Price = 400, UpgradePrice = 140,
                     Values = new[] { 6f, 5f, 3f }, Show = v => $"Huge swing, shockwave on the ground, {v:0.#}s" },
-            new() { Id = ItemId.BoomerangFlail, Name = "Boomerang Flail", Slot = Slot.Weapon, Icon = "Images/Items/boomerang_flail", Price = 350, UpgradePrice = 120,
+            new() { Id = ItemId.BoomerangFlail, Name = "Boomerang Flail", Slot = Slot.Weapon, Icon = "Images/Items/boomerang_flail", Price = 280, UpgradePrice = 100,
                     Values = new[] { 1.6f, 1.3f, 1f }, Show = v => $"Thrown out and back, smashes everything it passes, flies farther each level{(v <= 1 ? ", the chain cuts rocks too" : "")}, {v:0.#}s cooldown" },
 
             // Abilities (on the Ability key)

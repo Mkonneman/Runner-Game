@@ -125,7 +125,7 @@ namespace Runner_Game.Screens
                 var labelSize = font.MeasureString(label) * labelScale;
                 spriteBatch.DrawString(font, label, new Vector2(tile.Center.X - labelSize.X / 2, tile.Bottom - labelSize.Y - 16), Color.LightGray * a, 0f, Vector2.Zero, labelScale, SpriteEffects.None, 0f);
             }
-            string hint = "Tab / LB / RB to flip";
+            string hint = $"Tab / {Hud.PadLabel("LB")} / {Hud.PadLabel("RB")} to flip";
             var hintSize = font.MeasureString(hint) * 0.3f;
             spriteBatch.DrawString(font, hint, new Vector2(427 - hintSize.X / 2, 380), Color.Gray * a, 0f, Vector2.Zero, 0.3f, SpriteEffects.None, 0f);
         }

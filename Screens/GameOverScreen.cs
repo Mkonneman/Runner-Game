@@ -289,16 +289,27 @@ namespace Runner_Game.Screens
         private int _gemsShown;
         private readonly (string Value, string Label, Color Color)[] _stats;
 
+        // Saves the run: best score, top 5, lifetime stats and achievements. True if it's a new best
+        public static bool RecordRun(int score, DeathCause cause)
+        {
+            bool newBest = score > RunStats.Best;
+            if (newBest) RunStats.Best = score;
+            RunStats.Record(score, (int)(RunStats.Distance / 32));
+            if (cause == DeathCause.Wall) WallDeaths++;
+            Achievements.Unlock("first_run");
+            Achievements.Add("runs"); Achievements.Add("meters", (int)(RunStats.Distance / 32)); Achievements.Add("seconds", (int)RunStats.Time); Achievements.Add("gems_earned", RunStats.GemsFor(score));  // lifetime stats
+            if (WallDeaths >= 10) Achievements.Unlock("walls_died_10");
+            SaveSystem.Save();
+            return newBest;
+        }
+
         public GameOverScreen(GameScreen gameplay, int score, DeathCause cause)
         {
             _cleared = cause == DeathCause.Door;
             _gameplay = gameplay;
             _score = score;
             _gems = RunStats.GemsFor(score);
-            _newBest = score > RunStats.Best;
-            if (_newBest) RunStats.Best = score;
-            RunStats.Record(score, (int)(RunStats.Distance / 32));
-            SaveSystem.Save();
+            _newBest = RecordRun(score, cause);
             int seconds = (int)RunStats.Time;
             _stats = new[]
             {
@@ -329,10 +340,6 @@ namespace Runner_Game.Screens
             string pick;
             do pick = puns[RandomHelper.Next(0, puns.Length - 1)]; while (pick == _lastPun);
             _lastPun = pick;
-            if (cause == DeathCause.Wall) { WallDeaths++; SaveSystem.Save(); }
-            Achievements.Unlock("first_run");
-            Achievements.Add("runs"); Achievements.Add("meters", (int)(RunStats.Distance / 32)); Achievements.Add("seconds", (int)RunStats.Time); Achievements.Add("gems_earned", _gems);  // lifetime stats
-            if (WallDeaths >= 10) Achievements.Unlock("walls_died_10");
             _pun = pick.Replace("{walls}", WallDeaths.ToString());
             if (score == 67 || _gems == 67) _pun = "6... 7!";  // the meme beats any other pun
 
@@ -351,7 +358,7 @@ namespace Runner_Game.Screens
             _gearIcon = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/title_gear");
             _tablet = ScreenManager.Game.Content.Load<Texture2D>("Images/Menu/stat_tablet");
             // Dust Groove while you look over the run
-            Music.Play(ScreenManager.Game.Content.Load<Song>("Audio/Music/dust_groove"), 3.5f);  // eases in slow, it's a calm one
+            Music.Play(ScreenManager.Game.Content.Load<Song>("Audio/Music/dust_groove"), 3.5f, resume: true);  // eases in slow, it's a calm one
         }
 
         // Gems count up from 0 with little ticks
@@ -359,7 +366,7 @@ namespace Runner_Game.Screens
         {
             base.Update(gameTime, otherScreenHasFocus, coveredByOtherScreen);
             // Back from the shop (it stops the music on the way out), start the groove again
-            if (!coveredByOtherScreen && !IsExiting) Music.Play(ScreenManager.Game.Content.Load<Song>("Audio/Music/dust_groove"), 3.5f);
+            if (!coveredByOtherScreen && !IsExiting) Music.Play(ScreenManager.Game.Content.Load<Song>("Audio/Music/dust_groove"), 3.5f, resume: true);
             float dt = (float)gameTime.ElapsedGameTime.TotalSeconds;
             _age += dt;
             int target = (int)(_gems * MathHelper.Clamp((_age - 0.5f) / 1.2f, 0, 1));

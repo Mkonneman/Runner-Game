@@ -15,16 +15,31 @@ namespace Runner_Game
 
         public static bool Active => _t >= 0;
         public static float Left => Active ? MathF.Max(0, Hold + Open - _t) : 0;  // seconds till it's fully open
-        public static void Start() => _t = 0;
+        public static void Start() { _t = 0; _close = -1; }
+
+        private const float CloseTime = 1.1f;
+        private static float _close = -1;                // -1 = not closing
+        public static void Close() { if (_close < 0) _close = 0; }
+        public static bool Closed => _close >= CloseTime + 0.25f;  // shut, plus a beat of black
 
         public static void Draw(SpriteBatch spriteBatch, Texture2D pixel, float dt)
         {
+            if (_close >= 0)
+            {
+                _close += dt;
+                float k = 1 - MathHelper.Clamp(_close / CloseTime, 0, 1);
+                Mask(spriteBatch, pixel, k * k * 1000f);
+                return;
+            }
             if (!Active) return;
             _t += dt;
             float p = MathHelper.Clamp((_t - Hold) / Open, 0, 1);
             if (p >= 1) { _t = -1; return; }
-            float r = p * p * 1000f;  // eases in, 1000 is past the far corner from anywhere on screen
+            Mask(spriteBatch, pixel, p * p * 1000f);  // eases in, 1000 is past the far corner from anywhere on screen
+        }
 
+        private static void Mask(SpriteBatch spriteBatch, Texture2D pixel, float r)
+        {
             // Scanline strips: black left and right of the circle on each row
             for (int y = 0; y < Game1.VirtualHeight; y += 2)
             {

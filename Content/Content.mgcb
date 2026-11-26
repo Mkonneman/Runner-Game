@@ -2693,3 +2693,52 @@
 /processorParam:Quality=Best
 /processorParam:Version=3.8.5.1
 /build:Audio/Music/title_screen.ogg
+
+#begin Images/Cave/floor_decor.png
+/importer:TextureImporter
+/processor:TextureProcessor
+/processorParam:ColorKeyColor=255,0,255,255
+/processorParam:ColorKeyEnabled=True
+/processorParam:GenerateMipmaps=False
+/processorParam:PremultiplyAlpha=True
+/processorParam:ResizeToPowerOfTwo=False
+/processorParam:MakeSquare=False
+/processorParam:TextureFormat=Color
+/processorParam:Version=3.8.5.1
+/build:Images/Cave/floor_decor.png
+
+#begin Audio/Sfx/Golem/golem_step.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Golem/golem_step.wav
+
+#begin Audio/Sfx/Golem/golem_roar.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Golem/golem_roar.wav
+
+#begin Audio/Sfx/Golem/golem_crumble.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Golem/golem_crumble.wav
+
+#begin Audio/Sfx/Golem/golem_grind.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Golem/golem_grind.wav
+
+#begin Audio/Sfx/Golem/golem_rise.wav
+/importer:WavImporter
+/processor:SoundEffectProcessor
+/processorParam:Quality=Best
+/processorParam:Version=3.8.5.1
+/build:Audio/Sfx/Golem/golem_rise.wav
+
